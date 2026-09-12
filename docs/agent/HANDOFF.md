@@ -11,7 +11,7 @@ M0 native 实现已落地；本轮补齐 **游戏内调用点**（BigWorld mod�
 
 ## 最后 commit
 
-- **hash**: `3e9e969`
+- **hash**: `3e9e969`（本轮后更新）
 - **message**: `feat(multiclient): 接入游戏 mod 释放实例守卫 [TASK-M0.1]`
 - **文件**: src/client/**, src/deploy/install_multiclient.py, src/multiclient/**, tests/unit/, docs/**
 
@@ -33,6 +33,15 @@ M0 native 实现已落地；本轮补齐 **游戏内调用点**（BigWorld mod�
      `VVG_INSTANCE_GUARD_PATH`
    - path 解析支持 2.3.1.2 的 `win64/` + 根级 `mods/` 布局
    - `unittest` 22/22 通过；已写入游戏目录附属文件
+10. **TASK-M0.2**: res_mods 只加载 .pyc — 部署脚本增加 Python 2.7 编译
+   - **发现**：2.3.1.2 客户端只加载 `.pyc`，不读 `.py` 源文件
+   - `install_multiclient.py` 用 `D:\Python27\python.exe`（或 `.py27` 符号链接）
+     的 `py_compile` 生成 `.pyc`，并校验 magic `62211` / 字节 `03 f3 0d 0a`
+   - 同时保留 `.py` 与 `.pyc` 部署到 res_mods
+   - **magic 更正**：任务描述中的 `03 72 0d 0a` 有误（0x7203≠62211）；
+     实际 Python 2.7 magic = 62211 = 0xF303 → 字节 `03 f3 0d 0a`
+   - 新增单测 `test_compile_pyc_magic_is_py27`；Py2.7 下 23/23 通过
+   - 游戏目录已部署 4 个 `.pyc`（magic 均已独立验证）
 
 ## 未完成
 
@@ -43,7 +52,7 @@ M0 native 实现已落地；本轮补齐 **游戏内调用点**（BigWorld mod�
 
 ## 正在处理
 
-- M0.1 交付完成；等待用户真机双开确认
+- M0.1 + M0.2 交付完成；等待用户真机双开确认（mod 以 .pyc 加载）
 
 ## 下一步建议
 
@@ -63,12 +72,12 @@ M0 native 实现已落地；本轮补齐 **游戏内调用点**（BigWorld mod�
 - `docs/analysis/multiclient-research.md`
 - `tests/unit/test_instance_guard.py`
 
-### M0.1（本轮）
+### M0.1 / M0.2（本轮）
 
 - `src/client/mod_vvg_instance_guard.py`
 - `src/client/vvg_instance_guard/__init__.py`
 - `src/client/vvg_instance_guard/bootstrap.py`
-- `src/deploy/install_multiclient.py`
+- `src/deploy/install_multiclient.py` — 含 py_compile + magic 校验
 - `tests/unit/test_bootstrap_and_deploy.py`
 
 ### 产物（不入库，见 .gitignore）
@@ -109,6 +118,9 @@ M0 native 实现已落地；本轮补齐 **游戏内调用点**（BigWorld mod�
   `bootstrap.init()` → `instance_guard.release_if_requested()`
 - starter 必须设 `VVG_ALLOW_MULTIPLE_CLIENTS=1` **和**
   `VVG_INSTANCE_GUARD_PATH`（player 与 worker 都要）
+- **M0.2**：客户端只加载 res_mods 中的 `.pyc`；
+  Python 2.7 bytecode magic = 62211 (`03 f3 0d 0a`)；
+  部署必须用 Py2.7 编译，不可用 Py3 的 py_compile
 
 ## 风险
 

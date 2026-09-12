@@ -156,31 +156,58 @@ class ModEntryTests(unittest.TestCase):
 
 
 class DeployScriptTests(unittest.TestCase):
-    def test_deploy_module_loads(self):
+    def _load_deploy(self, name):
         import imp
         path = os.path.join(ROOT, 'src', 'deploy', 'install_multiclient.py')
         self.assertTrue(os.path.isfile(path))
-        deploy = imp.load_source('install_multiclient_under_test', path)
+        return imp.load_source(name, path)
+
+    def test_deploy_module_loads(self):
+        deploy = self._load_deploy('install_multiclient_under_test')
         self.assertEqual(deploy.MOD_ENTRY, 'mod_vvg_instance_guard.py')
         self.assertEqual(deploy.PACKAGE_DIR, 'vvg_instance_guard')
         self.assertIn('res_mods', deploy.RES_MODS_REL)
         self.assertIn('mods', deploy.MODS_REL)
+        self.assertEqual(deploy.PY27_MAGIC, 62211)
+        self.assertEqual(deploy.PY27_MAGIC_BYTES, b'\x03\xf3\r\n')
 
     def test_deploy_dry_run_lists_files(self):
-        import imp
-        path = os.path.join(ROOT, 'src', 'deploy', 'install_multiclient.py')
-        deploy = imp.load_source('install_multiclient_under_test2', path)
+        deploy = self._load_deploy('install_multiclient_under_test2')
         game_root = os.path.join(ROOT, 'dist', '_dry_game_root')
         os.makedirs(os.path.join(game_root, 'win64'))
         try:
             planned = deploy.install(game_root, dry_run=True)
             names = [os.path.basename(dst) for _, dst, _ in planned]
             self.assertIn('mod_vvg_instance_guard.py', names)
+            self.assertIn('mod_vvg_instance_guard.pyc', names)
             self.assertIn('instance_guard.py', names)
+            self.assertIn('instance_guard.pyc', names)
             self.assertIn('__init__.py', names)
+            self.assertIn('__init__.pyc', names)
             self.assertIn('bootstrap.py', names)
+            self.assertIn('bootstrap.pyc', names)
         finally:
             shutil.rmtree(game_root, ignore_errors=True)
+
+    def test_compile_pyc_magic_is_py27(self):
+        deploy = self._load_deploy('install_multiclient_under_test3')
+        python27 = deploy.find_python27()
+        if not python27:
+            self.skipTest('Python 2.7 interpreter not available')
+        tmp = tempfile.mkdtemp(prefix='vvg_pyc_')
+        try:
+            src = os.path.join(tmp, 'sample_mod.py')
+            dst = os.path.join(tmp, 'sample_mod.pyc')
+            with open(src, 'wb') as handle:
+                handle.write(b'# -*- coding: utf-8 -*-\nVALUE = 42\n')
+            deploy.compile_pyc(src, dst, python27=python27)
+            self.assertTrue(os.path.isfile(dst))
+            ok, magic_int, magic_bytes = deploy.verify_pyc_magic(dst)
+            self.assertTrue(ok)
+            self.assertEqual(magic_int, 62211)
+            self.assertEqual(magic_bytes, b'\x03\xf3\r\n')
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == '__main__':
