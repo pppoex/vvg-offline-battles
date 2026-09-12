@@ -12,9 +12,9 @@ M0 多实例限制解除（双开验证通过）与 M1 SDK 骨架均已完成。
 
 ## 最后 commit
 
-- **hash**: （见 git log 最新 TASK-M1）
+- **hash**: `a391fba`
 - **message**: `feat(sdk): 抽取 hooks/log/config 并实现 math 库 [TASK-M1]`
-- **已推送**: 待确认是否 push origin master:main
+- **已推送**: `master` → `origin/main`
 
 ## 已完成
 

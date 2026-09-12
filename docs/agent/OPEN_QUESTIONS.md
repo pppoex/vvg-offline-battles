@@ -44,10 +44,22 @@
 - **是否阻塞**：否
 - **优先级**：低（仅在出现特定问题时需要）
 
-### 问题：2.3.1.2 Python .pyc magic number
+### ~~问题：2.3.1.2 Python .pyc magic number~~ ✅ 已解决
 
 - **已确认**：magic = 62211 = `03 f3 0d 0a`（Python 2.7）
 - **验证方法**：已通过实际编译和部署验证
+- **状态**：✅ 已解决
+
+### ~~问题：SDK Python 2/3 兼容~~ ✅ 已解决（M1）
+
+- **结论**：`src/sdk/**` 保持 2/3 双兼容（禁 f-string / 运行时类型注解）
+- **验证**：Py2.7 `py_compile` 全通过；Py3.14 pytest 全绿
+- **状态**：✅ 已解决
+
+### ~~问题：Offline config.py 整文件迁移~~ ✅ 已解决（M1）
+
+- **结论**：不整文件复制；只保留 JSON override + 联机网络默认值
+- **理由**：Offline 882 行多为单机 BATTLE_*/OFFLINE_* 开关
 - **状态**：✅ 已解决
 
 ### 问题：openwg mod 功能
