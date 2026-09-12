@@ -1,6 +1,6 @@
 # MILESTONES.md — 里程碑总览与进度追踪
 
-> 最后更新：2026-09-12（M3 完成后）
+> 最后更新：2026-09-12（M4 完成后）
 > 用途：追踪所有里程碑的进度、交付物、验收标准和未来方向
 
 ---
@@ -12,14 +12,14 @@ M0 █████████████████████████�
 M1 ████████████████████████████████ 100%  ✅ 已完成
 M2 ████████████████████████████████ 100%  ✅ 已完成
 M3 ████████████████████████████████ 100%  ✅ 已完成
-M4 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
+M4 ████████████████████████████████ 100%  ✅ 已完成（骨架）
 M5 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M6 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M7 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M8 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M9 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 
-整体进度: 40% (4/10 里程碑)
+整体进度: 50% (5/10 里程碑)
 ```
 
 ---
@@ -253,10 +253,10 @@ pytest tests/unit tests/integration
 
 ---
 
-## M4: 薄客户端补丁 ⬜
+## M4: 薄客户端补丁 ✅
 
-**状态**: 未开始  
-**预计时间**: 3-4 天  
+**状态**: 已完成（骨架）  
+**完成时间**: 2026-09-12  
 **依赖**: M2
 
 ### 目标
@@ -265,38 +265,44 @@ pytest tests/unit tests/integration
 
 ### 交付物
 
-1. `src/client/` — 客户端模块
-   - `mod_entry.py` — BigWorld mod 入口
-   - `bootstrap.py` — 初始化
-   - `session.py` — 会话管理
-   - `network/` — 网络层
-   - `prediction/` — 客户端预测
-   - `render/` — 渲染呈现
-   - `ui/` — UI 补丁
-   - `hooks/` — BigWorld hook
+1. `src/client/mod_vvg_client.py` — BigWorld mod 入口
+2. `src/client/vvg_client/` — 客户端包
+   - `bootstrap.py` / `session.py`
+   - `network/` — connection / client / reconnect
+   - `prediction/` — local_player / interpolation（占位）
+   - `hooks/` — BigWorld addCallback（可选）
+3. `src/deploy/install_client.py` — 部署 + Py2.7 .pyc
+4. `tests/unit/test_client_network.py`
+5. `tests/integration/test_client.py`
+6. `docs/design/thin_client.md`
 
 ### 验收标准
 
-- ✅ 客户端可连接服务器
-- ✅ 预测和插值正常
-- ✅ BigWorld hook 可用
-- ✅ mod 可加载
+- ✅ 客户端可连接服务器（hello/welcome/roster/input/snapshot/ping）
+- ⚠️ 预测和插值占位可用；M6 接入权威运动
+- ✅ BigWorld hook 可用（无 BigWorld 时跳过）
+- ✅ mod 源 + 部署脚本就绪（.pyc magic=62211）
+- ✅ 与真实 `GameServer` 集成测试全绿
 
 ### 测试方式
 
 ```bash
-pytest tests/integration/test_client.py
+pytest tests/unit/test_client_network.py tests/integration/test_client.py
+# 或全量
+pytest tests/unit tests/integration
 ```
 
-### 风险
+### 关键决策
 
-- BigWorld API 变化
-- Python 2.7 限制
-- 预测精度
+1. 复用 `src/protocol` builder；禁止客户端本地 envelope
+2. 接收线程 + 主线程 `pump`/`tick`；有界队列优先丢旧 snapshot
+3. 预测为常系数占位；权威行硬校正
+4. 部署 vendored `protocol/` + `sdk/` 到 mods 目录
 
 ### 未来方向
 
-客户端需要与 Offline2.3.1.2 的 UI 和 hook 系统集成。
+- M5 启动器拉起 sim-worker 并设置 `VVG_*` 环境变量
+- M6 基础同步：实体绑定 + 真实运动预测
 
 ---
 
@@ -577,7 +583,7 @@ M4 (客户端) ⬜ ←────────────────┘
 
 | 分支 | 用途 | 最后 commit |
 |---|---|---|
-| `main` | 主分支，后续开发 | `a7aeabf`（TASK-M3） |
+| `main` | 主分支，后续开发 | `HEAD`（TASK-M4） |
 | `base` | 存档，不再改动 | `5636a9b` |
 
 仓库地址：https://github.com/pppoex/vvg-offline-battles

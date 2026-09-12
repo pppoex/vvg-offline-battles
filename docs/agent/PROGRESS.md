@@ -20,6 +20,7 @@
 | 7 | TASK-M1 | 项目骨架与 SDK 抽取 | 已完成 | pyproject.toml, src/sdk/**, tests/unit/test_sdk_*.py | pytest 全绿 + Py2.7 编译 | a391fba | 2026-09-12 |
 | 8 | TASK-M2 | 协议与序列化 | 已完成 | src/protocol/**, tests/unit/test_protocol.py, test_serializer.py, docs/design/protocol.md | pytest 全绿 + Py2.7 编译 | 2ae17fe | 2026-09-12 |
 | 9 | TASK-M3 | sim-worker 权威服务器骨架 | 已完成 | src/sim_worker/**, tests/integration/test_server.py, docs/design/sim_worker.md | pytest 全绿（unit+integration） | de5dd79 | 2026-09-12 |
+| 10 | TASK-M4 | 薄客户端补丁 | 已完成 | src/client/vvg_client/**, mod_vvg_client.py, install_client.py, tests | pytest 全绿 + Py2.7 编译 | 本轮业务 commit | 2026-09-12 |
 
 ## 状态说明
 
@@ -36,7 +37,7 @@
 | M1: 项目骨架与 SDK | ✅ **已完成** | SDK 抽取 + 数学库 + 单测框架 |
 | M2: 协议与序列化 | ✅ **已完成** | protocol 包 + 能力协商 + 单测 + 文档 |
 | M3: sim-worker 服务器 | ✅ **已完成（骨架）** | TCP 握手 + 房间 + 30Hz tick + 15Hz 快照 |
-| M4: 薄客户端补丁 | ⬜ 未开始 | — |
+| M4: 薄客户端补丁 | ✅ **已完成（骨架）** | BattleClient + 预测占位 + mod 入口 + 集成测试 |
 | M5: 启动器与部署 | ⬜ 未开始 | — |
 | M6: 基础同步 | ⬜ 未开始 | — |
 | M7: 战斗同步 | ⬜ 未开始 | — |

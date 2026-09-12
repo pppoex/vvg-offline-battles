@@ -26,5 +26,5 @@ include = ["sdk*", "protocol*", "sim_worker*", "launcher*", "deploy*", "multicli
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/integration"]
-pythonpath = ["src", "src/multiclient", "."]
+pythonpath = ["src", "src/client", "src/multiclient", "."]
 addopts = "-q"
