@@ -11,9 +11,9 @@ M0 native 实现已落地；本轮补齐 **游戏内调用点**（BigWorld mod�
 
 ## 最后 commit
 
-- **hash**: 待提交（本轮 M0.1）
-- **message**: 建议 `feat(multiclient): 接入游戏 mod 释放实例守卫 [TASK-M0.1]`
-- **文件**: src/client/**, src/deploy/install_multiclient.py, src/multiclient/**, tests/unit/**
+- **hash**: `3e9e969`
+- **message**: `feat(multiclient): 接入游戏 mod 释放实例守卫 [TASK-M0.1]`
+- **文件**: src/client/**, src/deploy/install_multiclient.py, src/multiclient/**, tests/unit/, docs/**
 
 ## 已完成
 
