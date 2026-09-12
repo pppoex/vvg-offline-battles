@@ -4,19 +4,19 @@
 
 ## 当前阶段
 
-**M0.3：双开 "already running" 根因修复 — 游戏无 `_ctypes`，改用扩展导入**
+**M0 完成：双开验证通过，已推送到 GitHub**
 
-M0.1/M0.2 后真机仍弹 already running。日志证明 mod **已加载**，失败点是
-`No module named _ctypes`（WoT 内嵌 Python 2.7 无 `_ctypes`）。
+用户确认双开正常。已推送到：
+- `main` 分支（主分支，后续开发）
+- `base` 分支（存档，不再改动）
 
-本轮修复：`imp.load_dynamic` 直接导入 native pyd 作为 C 扩展，绕过 ctypes。
+远程仓库：https://github.com/pppoex/vvg-offline-battles
 
 ## 最后 commit
 
-- **hash**: `78a989a`
+- **hash**: `5636a9b`（本地）/ `78a989a`（主要代码变更）
 - **message**: `fix(multiclient): 游戏内用扩展导入替代 ctypes 释放守卫 [TASK-M0.3]`
-- **文件**: src/multiclient/instance_guard.py, src/multiclient/native/instance_guard.c,
-  src/client/vvg_instance_guard/bootstrap.py, tests/unit/, docs/analysis/multiclient-debug-log.md
+- **已推送**: main + base 分支
 
 ## 已完成
 
@@ -59,24 +59,27 @@ M0.1/M0.2 后真机仍弹 already running。日志证明 mod **已加载**，失
 
 ## 未完成
 
-1. **真机双开联机验证**（用户确认；需先开满第一个客户端再开第二个）
-2. **WGC cleanup thunk x64 RVA 逆向**（报告 V3；当前用句柄枚举替代）
-3. **install_atmosphere_owner_guard**（0.9.22 专属，2.3.1.2 返回 22）
-4. **sim-worker 联机协议移植**（后续里程碑）
+1. **WGC cleanup thunk x64 RVA 逆向**（报告 V3；当前用句柄枚举替代，已验证可用）
+2. **install_atmosphere_owner_guard**（0.9.22 专属，2.3.1.2 返回 22，不影响双开）
+3. **M1: 项目骨架与 SDK 抽取**（下一个里程碑）
+4. **M2: 协议与序列化**
+5. **M3: sim-worker 权威服务器**
+6. **M4: 薄客户端补丁**
+7. **M5-M9**: 后续里程碑
 
 ## 正在处理
 
-- M0.3 修复已部署；等待用户真机双开确认
+- M0 已完成并验证；等待进入 M1
 
 ## 下一步建议
 
-1. 完全退出所有 WoT 进程
-2. 用 `win64\vvg_worker_starter.exe --player` 开满第一个客户端到登录界面
-3. 再用第二个 `vvg_worker_starter.exe --player` 开第二个，确认无 “already running”
-4. 查 `vvg-player-python.log` / `vvg-worker-python.log`：
-   - 应有 `native bridge loaded via=extension`
-   - 应有 `released startup/WGC mutexes for multi-client`
-5. 若仍有对话框：用 Process Explorer 查 `WOT_STARTUP_MUTEX` 是否带额外前缀（V1）
+进入 **M1: 项目骨架与 SDK 抽取**：
+
+1. 创建 `pyproject.toml` 和项目目录结构
+2. 从 Offline2.3.1.2 抽取 SDK 基础模块（hooks.py, log.py, config.py）
+3. 实现数学库（vector.py, matrix.py）
+4. 建立单元测试框架
+5. 参考 `docs/analysis/05-migration-and-sdk-plan.md` 的详细计划
 
 ## 关键文件
 
@@ -150,8 +153,8 @@ M0.1/M0.2 后真机仍弹 already running。日志证明 mod **已加载**，失
 
 ## 待用户确认
 
-1. M0 真机双开是否通过
-2. 是否继续 M1（sim-worker 协议）
+1. ~~M0 真机双开是否通过~~ — **已通过**
+2. 是否继续 M1（SDK 抽取与项目骨架）
 
 ## 禁止事项提醒
 
