@@ -2,7 +2,7 @@
 """Mod bootstrap — ensure paths, optionally install BigWorld hooks.
 
 Called from ``mod_vvg_client.init()``. Safe to call twice (idempotent).
-Works without BigWorld so host tests can import the same code path.
+Never raises: game.init must survive any thin-client failure.
 """
 from __future__ import absolute_import, division, print_function
 
@@ -12,6 +12,7 @@ import sys
 LOG_PREFIX = '[VVG thin client] '
 
 _started = False
+_session = False  # sentinel replaced by object / None after start
 _session = None
 
 
@@ -24,33 +25,95 @@ def _log(message):
         pass
 
 
-def ensure_paths():
-    """Put the mods directory on sys.path so ``protocol`` is importable.
+def _has_pkg(directory, name):
+    return os.path.isdir(os.path.join(directory, name))
 
-    Deployed layout::
 
-        res_mods/2.3.1.2/scripts/client/gui/mods/
-            mod_vvg_client.py
-            vvg_client/
-            protocol/          # vendored copy of src/protocol
+def _res_mods_alternates(directory):
+    """Yield res_mods-style mods dirs when a junction omits res_mods.
 
-    Host layout leaves ``src`` on PYTHONPATH already; this is a no-op then.
+    Some installs expose both ``<root>/scripts/...`` and
+    ``<root>/res_mods/<ver>/scripts/...``. If this file was imported via the
+    junction view, packages live only under res_mods.
     """
-    here = os.path.dirname(os.path.abspath(__file__))
-    # .../mods/vvg_client  ->  .../mods
-    mods_dir = os.path.dirname(here)
-    if mods_dir and mods_dir not in sys.path:
-        sys.path.insert(0, mods_dir)
-        _log('sys.path += %s' % mods_dir)
-    # Host workspace: .../src/client -> also need .../src for protocol/sdk
-    # when someone imported via file path without PYTHONPATH.
-    client_dir = os.path.dirname(here)
-    src_dir = os.path.dirname(client_dir)
-    if os.path.basename(client_dir) == 'client' and os.path.isdir(
-            os.path.join(src_dir, 'protocol')):
-        if src_dir not in sys.path:
-            sys.path.insert(0, src_dir)
-            _log('sys.path += %s' % src_dir)
+    if not directory:
+        return
+    norm = os.path.normpath(directory)
+    parts = norm.split(os.sep)
+    # Find trailing ...\scripts\client\gui\mods
+    tail = ['scripts', 'client', 'gui', 'mods']
+    if [p.lower() for p in parts[-4:]] != tail:
+        return
+    root = os.sep.join(parts[:-4])
+    res_mods = os.path.join(root, 'res_mods')
+    if not os.path.isdir(res_mods):
+        return
+    try:
+        versions = sorted(os.listdir(res_mods), reverse=True)
+    except Exception:
+        return
+    for name in versions:
+        yield os.path.join(res_mods, name, 'scripts', 'client', 'gui', 'mods')
+
+
+def _candidate_mod_dirs():
+    """Parent dirs of this package that may hold protocol/sdk as siblings."""
+    here = os.path.abspath(__file__)
+    start = os.path.dirname(here)  # .../vvg_client
+    candidates = []
+    cur = start
+    for _ in range(6):
+        if not cur:
+            break
+        candidates.append(cur)
+        cur = os.path.dirname(cur)
+
+    expanded = []
+    seen = set()
+    for directory in candidates:
+        for path in [directory] + list(_res_mods_alternates(directory)):
+            if not path:
+                continue
+            key = os.path.normcase(os.path.normpath(path))
+            if key in seen:
+                continue
+            seen.add(key)
+            if _has_pkg(path, 'vvg_client') and (
+                    _has_pkg(path, 'protocol') or _has_pkg(path, 'sdk')):
+                expanded.append(path)
+    # Prefer directories that actually contain protocol/.
+    expanded.sort(key=lambda d: (0 if _has_pkg(d, 'protocol') else 1, len(d)))
+    return expanded
+
+
+def ensure_paths():
+    """Put the mod directory on sys.path so ``protocol`` / ``sdk`` import."""
+    for directory in _candidate_mod_dirs():
+        if not directory:
+            continue
+        if directory not in sys.path:
+            sys.path.insert(0, directory)
+        try:
+            import protocol  # noqa: F401
+            _log('sys.path ok (protocol) via %s' % directory)
+            return directory
+        except Exception:
+            # Drop a bad path we just inserted so a later candidate wins.
+            try:
+                sys.path.remove(directory)
+            except ValueError:
+                pass
+            continue
+    # Fallback: still record the first plausible dir for diagnostics.
+    candidates = _candidate_mod_dirs()
+    if candidates:
+        directory = candidates[0]
+        if directory not in sys.path:
+            sys.path.insert(0, directory)
+        _log('sys.path += %s (protocol verify failed)' % directory)
+        return directory
+    _log('ensure_paths: no candidate mods directory')
+    return None
 
 
 def _identity_from_env():
@@ -74,7 +137,11 @@ def _identity_from_env():
 
 
 def create_session(name=None, vehicle=None, host=None, port=None):
-    from vvg_client.session import ClientSession
+    # Prefer package-relative import (works inside gui.mods.vvg_client).
+    try:
+        from .session import ClientSession
+    except (ImportError, ValueError):
+        from vvg_client.session import ClientSession
     env = _identity_from_env()
     return ClientSession(
         name=name or env['name'],
@@ -85,11 +152,15 @@ def create_session(name=None, vehicle=None, host=None, port=None):
 
 
 def init(name=None, vehicle=None, host=None, port=None, auto_connect=True):
-    """Start the thin client (connect unless disabled)."""
+    """Start the thin client. Never raises (game.init must not die)."""
     global _started, _session
     if _started:
         return _session
-    ensure_paths()
+
+    try:
+        ensure_paths()
+    except Exception as path_error:
+        _log('ensure_paths failed: %s' % path_error)
 
     try:
         from sdk import config
@@ -98,14 +169,26 @@ def init(name=None, vehicle=None, host=None, port=None, auto_connect=True):
     except Exception as config_error:
         _log('config load failed: %s' % config_error)
 
-    _session = create_session(name=name, vehicle=vehicle, host=host, port=port)
+    try:
+        _session = create_session(name=name, vehicle=vehicle,
+                                  host=host, port=port)
+    except Exception as session_error:
+        _log('create_session failed: %s' % session_error)
+        _session = None
+        _started = True
+        return None
+
     client = _session.client
     _log('session name=%s vehicle=%s target=%s:%s' % (
         client.name, client.vehicle, client.connection.host,
         client.connection.port))
 
     if auto_connect:
-        welcome = _session.start()
+        try:
+            welcome = _session.start()
+        except Exception as start_error:
+            _log('start failed: %s' % start_error)
+            welcome = None
         if welcome is None:
             _log('handshake failed: %s' % _session.last_error)
         else:
@@ -114,7 +197,10 @@ def init(name=None, vehicle=None, host=None, port=None, auto_connect=True):
                 welcome.get('phase')))
 
     try:
-        from vvg_client.hooks import bigworld_hooks
+        try:
+            from .hooks import bigworld_hooks
+        except (ImportError, ValueError):
+            from vvg_client.hooks import bigworld_hooks
         installed = bigworld_hooks.install(_session)
         _log('bigworld hooks installed=%s' % ('1' if installed else '0'))
     except Exception as hook_error:
@@ -127,7 +213,10 @@ def init(name=None, vehicle=None, host=None, port=None, auto_connect=True):
 def fini():
     global _started, _session
     try:
-        from vvg_client.hooks import bigworld_hooks
+        try:
+            from .hooks import bigworld_hooks
+        except (ImportError, ValueError):
+            from vvg_client.hooks import bigworld_hooks
         bigworld_hooks.uninstall()
     except Exception:
         pass

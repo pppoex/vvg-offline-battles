@@ -6,10 +6,10 @@ update entry used by BigWorld callbacks and by integration tests.
 """
 from __future__ import absolute_import, division, print_function
 
-from vvg_client.network.client import BattleClient
-from vvg_client.network.reconnect import ReconnectPolicy
-from vvg_client.prediction.interpolation import SnapshotBuffer
-from vvg_client.prediction.local_player import LocalPlayer
+from .network.client import BattleClient
+from .network.reconnect import ReconnectPolicy
+from .prediction.interpolation import SnapshotBuffer
+from .prediction.local_player import LocalPlayer
 
 
 class ClientSession(object):
@@ -156,7 +156,7 @@ class ClientSession(object):
 
     @staticmethod
     def _now():
-        from vvg_client.network.connection import monotonic_time
+        from .network.connection import monotonic_time
         return monotonic_time()
 
 

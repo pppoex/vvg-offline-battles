@@ -2,11 +2,9 @@
 """Optional BigWorld hooks — schedule ClientSession.pump/tick on the engine.
 
 Outside the game (unit / integration tests) ``install`` is a no-op and
-returns False. Inside BigWorld, a repeating callback drives the session.
+returns False. Inside BigWorld, ``BigWorld.callback`` drives the session.
 """
 from __future__ import absolute_import, division, print_function
-
-from sdk import hooks as sdk_hooks
 
 _installed = False
 _session = None
@@ -33,7 +31,11 @@ def _import_bigworld():
 
 
 def _schedule(bigworld, session, delay=0.0):
-    """Register a one-shot addCallback that re-arms itself each frame."""
+    """Register a BigWorld.callback that re-arms itself each frame."""
+    callback = getattr(bigworld, 'callback', None)
+    if not callable(callback):
+        _log('BigWorld.callback missing')
+        return False
 
     def _frame():
         global _callback_token
@@ -44,15 +46,15 @@ def _schedule(bigworld, session, delay=0.0):
             _log('session tick failed: %s' % exc)
         try:
             if _session is session and session is not None and session.connected:
-                _callback_token = bigworld.addCallback(delay, _frame)
+                _callback_token = callback(delay, _frame)
         except Exception as exc:
             _log('reschedule failed: %s' % exc)
 
     try:
-        _callback_token = bigworld.addCallback(delay, _frame)
+        _callback_token = callback(delay, _frame)
         return True
     except Exception as exc:
-        _log('addCallback failed: %s' % exc)
+        _log('BigWorld.callback failed: %s' % exc)
         return False
 
 
@@ -95,5 +97,4 @@ __all__ = [
     'uninstall',
     'is_installed',
     'current_session',
-    'sdk_hooks',
 ]

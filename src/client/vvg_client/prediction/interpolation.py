@@ -6,7 +6,7 @@ poses at ``now - delay_ms``. Without two samples it returns the latest row.
 """
 from __future__ import absolute_import, division, print_function
 
-from vvg_client.network.connection import monotonic_time
+from ..network.connection import monotonic_time
 
 
 def _row_id(row):

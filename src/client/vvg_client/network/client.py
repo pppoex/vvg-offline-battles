@@ -36,7 +36,7 @@ from protocol.messages import (
     message_type_of,
 )
 
-from vvg_client.network.connection import TcpLineConnection, monotonic_time
+from .connection import TcpLineConnection, monotonic_time
 
 
 class BattleClient(object):
