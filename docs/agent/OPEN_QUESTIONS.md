@@ -56,6 +56,13 @@
 - **验证**：Py2.7 `py_compile` 全通过；Py3.14 pytest 全绿
 - **状态**：✅ 已解决
 
+### ~~问题：协议实现路径~~ ✅ 已解决（M2）
+
+- **结论**：对齐 0.9.22 JSON lines v5；包路径 `src/protocol`；必选能力 `core_session_v1`
+- **验证**：`pytest tests/unit/test_protocol.py tests/unit/test_serializer.py` 全绿；Py2.7 可编译
+- **文档**：`docs/design/protocol.md`
+- **状态**：✅ 已解决
+
 ### ~~问题：Offline config.py 整文件迁移~~ ✅ 已解决（M1）
 
 - **结论**：不整文件复制；只保留 JSON override + 联机网络默认值
@@ -75,6 +82,8 @@
 ---
 
 ## 待用户确认的问题
+
+> **M3 提醒**：下列「Bot AI 范围」「单人模式处理」建议在开工 M3 前或 M3 初确认；其余可延后。
 
 ### 问题：Bot AI 范围
 

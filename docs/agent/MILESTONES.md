@@ -1,6 +1,6 @@
 # MILESTONES.md — 里程碑总览与进度追踪
 
-> 最后更新：2026-09-12
+> 最后更新：2026-09-12（M2 完成后）
 > 用途：追踪所有里程碑的进度、交付物、验收标准和未来方向
 
 ---
@@ -155,6 +155,11 @@ SDK 是后续所有模块的基础：
 | `tests/unit/test_protocol.py` | 消息与协商单测 |
 | `tests/unit/test_serializer.py` | 序列化专项单测 |
 | `docs/design/protocol.md` | 协议文档 |
+
+### Commits
+
+- `2ae17fe` feat(protocol): 实现 JSON lines 协议层与能力协商 [TASK-M2]
+- `59cf674` docs(agent): M2 收尾回填 commit hash [TASK-M2]
 
 ### 验收标准
 
