@@ -26,8 +26,9 @@ M4 交付可连接 sim-worker 的薄客户端骨架：
 | `src/client/vvg_client/network/reconnect.py` | `ReconnectPolicy`（M8 接线） |
 | `src/client/vvg_client/prediction/local_player.py` | 本地死区预测占位 |
 | `src/client/vvg_client/prediction/interpolation.py` | 快照环形缓冲 + 插值占位 |
-| `src/client/vvg_client/hooks/bigworld_hooks.py` | BigWorld `addCallback` 帧循环（无 BigWorld 时跳过） |
+| `src/client/vvg_client/hooks/bigworld_hooks.py` | BigWorld `callback` 帧循环（无 BigWorld 时跳过） |
 | `src/deploy/install_client.py` | 部署到 res_mods + Py2.7 编译 .pyc |
+| `src/client/offline_entry/mod_offhangar2.py` | Offline 入口 Decompyle 修复版 |
 | `tests/unit/test_client_network.py` | 网络 / 预测 / 策略单测 |
 | `tests/integration/test_client.py` | 对接 `sim_worker.GameServer` |
 
@@ -98,13 +99,30 @@ python -m pytest tests/unit tests/integration -q
 python -m pytest tests/unit/test_client_network.py tests/integration/test_client.py -q
 ```
 
-## 8. M4 已知简化
+## 12. worker 角色（M4 真机补充）
 
-1. 无自动重连（策略已就绪，M8 接线）。
-2. 预测为常系数占位，非 Offline 物理。
-3. 无车辆实体绑定 / UI（M6+ 与 BigWorld Avatar 对接）。
-4. `leave_battle` 服务器侧仍整房回 waiting（M3 行为）。
-5. 真机游戏内验证依赖日志；宿主无法加载 Py2.7 pyd。
+| 项 | 行为 |
+|---|---|
+| 环境 | starter worker 模式设 `VVG_CLIENT_MODE=simulation_worker` |
+| hello | `role=worker`，能力含 `core_session_v1` + `simulation_worker_v1` |
+| 服务器 | 接受 worker；占位 name=`worker` vehicle=`worker` |
+| ready | 握手成功后写 `VVG_WORKER_READY_MARKER` 供 starter 等待 |
+| 可见调试 | `vvg_worker_starter.exe --worker-only --show`（不建隐藏桌面） |
+
+## 13. 真机部署组合
+
+仅 vvg 客户端**无法**进车库。完整最小组合：
+
+```powershell
+python src/deploy/install_multiclient.py  # 守卫 + starter
+python src/deploy/install_client.py       # 薄客户端
+python src/deploy/install_offhangar.py    # Offline 车库
+```
+
+## 14. M4 已知简化（续）
+
+6. 服务器须先于客户端启动；旧进程占 28782 会导致“假连接成功”（连到无日志旧实例）。
+7. Offline 与 vvg 并存；M6 战斗需避免双权威。
 
 ## 9. 与 M3 的边界
 

@@ -255,7 +255,7 @@ pytest tests/unit tests/integration
 
 ## M4: 薄客户端补丁 ✅
 
-**状态**: 已完成（骨架）  
+**状态**: 已完成（骨架 + 真机）  
 **完成时间**: 2026-09-12  
 **依赖**: M2
 
@@ -265,43 +265,38 @@ pytest tests/unit tests/integration
 
 ### 交付物
 
-1. `src/client/mod_vvg_client.py` — BigWorld mod 入口
-2. `src/client/vvg_client/` — 客户端包
-   - `bootstrap.py` / `session.py`
-   - `network/` — connection / client / reconnect
-   - `prediction/` — local_player / interpolation（占位）
-   - `hooks/` — BigWorld addCallback（可选）
-3. `src/deploy/install_client.py` — 部署 + Py2.7 .pyc
-4. `tests/unit/test_client_network.py`
-5. `tests/integration/test_client.py`
-6. `docs/design/thin_client.md`
+1. `src/client/mod_vvg_client.py` — BigWorld mod 入口（永不抛异常）
+2. `src/client/vvg_client/` — 客户端包（player + worker 角色）
+3. `src/deploy/install_client.py` / `install_offhangar.py`
+4. `src/client/offline_entry/mod_offhangar2.py` — Decompyle 修复
+5. `src/multiclient/native/worker_starter.c` — `--show`/`--hide`
+6. `tests/unit/test_client_network.py` + `tests/integration/test_client.py`
+7. `docs/design/thin_client.md`
 
 ### 验收标准
 
 - ✅ 客户端可连接服务器（hello/welcome/roster/input/snapshot/ping）
-- ⚠️ 预测和插值占位可用；M6 接入权威运动
-- ✅ BigWorld hook 可用（无 BigWorld 时跳过）
-- ✅ mod 源 + 部署脚本就绪（.pyc magic=62211）
-- ✅ 与真实 `GameServer` 集成测试全绿
+- ✅ 预测和插值占位可用；M6 完善
+- ✅ BigWorld hook 可用（`BigWorld.callback`）
+- ✅ mod 可加载；真机进车库 + sim-worker join
+- ✅ worker 角色可接入并写 ready 标记
 
 ### 测试方式
 
 ```bash
-pytest tests/unit/test_client_network.py tests/integration/test_client.py
-# 或全量
 pytest tests/unit tests/integration
 ```
 
-### 关键决策
+### 真机联调要点
 
-1. 复用 `src/protocol` builder；禁止客户端本地 envelope
-2. 接收线程 + 主线程 `pump`/`tick`；有界队列优先丢旧 snapshot
-3. 预测为常系数占位；权威行硬校正
-4. 部署 vendored `protocol/` + `sdk/` 到 mods 目录
+1. 先起 sim-worker，确认无残留旧进程占 28782
+2. 部署三件套：multiclient + client + offhangar
+3. `vvg_worker_starter.exe --player` / `--worker-only --show`
+4. 看 sim-worker `accept/join` 与 `vvg-*-python.log`
 
 ### 未来方向
 
-- M5 启动器拉起 sim-worker 并设置 `VVG_*` 环境变量
+- M5 启动器一键拉起
 - M6 基础同步：实体绑定 + 真实运动预测
 
 ---

@@ -312,3 +312,27 @@
   - `docs/analysis/05-migration-and-sdk-plan.md` §5.2
   - 参考 `lan_battle_server.py` ThreadedTCPServer + tick loop
 - **状态**：已执行（M3）
+
+## 决策：M4 薄客户端 init 永不抛异常，并复用 protocol builder
+
+- **背景**：BigWorld `mods` 会在 `game.init` 里逐个调 `init()`；ImportError 会整局崩溃
+- **结论**：`mod_vvg_client` / `bootstrap.init` 全程 try/except；网络消息全部走 `protocol.messages`
+- **影响**：失败只写日志；junction 路径用 res_mods 回退 + `import protocol` 校验
+- **状态**：已执行（M4 真机通过）
+
+## 决策：进车库仍依赖 Offline hangar（offhangar2），战斗权威走 sim-worker
+
+- **背景**：M4 只做联机网络层；车库假服/自动登录仍需 Offline
+- **结论**：`install_offhangar` 部署修复版 `mod_offhangar2`；与 `vvg_client` 并存
+- **影响**：M6 替换战斗路径时需处理 Offline battle 与 sim-worker 的边界
+- **状态**：已执行（M4）
+
+## 决策：worker 角色接入 sim-worker；starter 可控制隐藏窗口
+
+- **背景**：starter 支持 `simulation_worker` 游戏进程，需连权威服并写 ready 标记
+- **结论**：
+  - 客户端 `VVG_CLIENT_MODE=simulation_worker` → hello `role=worker` + 能力 `simulation_worker_v1`
+  - 服务器接受 worker（占位 name/vehicle）
+  - 握手成功写 `VVG_WORKER_READY_MARKER`
+  - starter 参数：`--player` / `--worker-only` / `--show` / `--hide`
+- **状态**：已执行（M4）

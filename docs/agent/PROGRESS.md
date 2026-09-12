@@ -20,7 +20,7 @@
 | 7 | TASK-M1 | 项目骨架与 SDK 抽取 | 已完成 | pyproject.toml, src/sdk/**, tests/unit/test_sdk_*.py | pytest 全绿 + Py2.7 编译 | a391fba | 2026-09-12 |
 | 8 | TASK-M2 | 协议与序列化 | 已完成 | src/protocol/**, tests/unit/test_protocol.py, test_serializer.py, docs/design/protocol.md | pytest 全绿 + Py2.7 编译 | 2ae17fe | 2026-09-12 |
 | 9 | TASK-M3 | sim-worker 权威服务器骨架 | 已完成 | src/sim_worker/**, tests/integration/test_server.py, docs/design/sim_worker.md | pytest 全绿（unit+integration） | de5dd79 | 2026-09-12 |
-| 10 | TASK-M4 | 薄客户端补丁 | 已完成 | src/client/vvg_client/**, mod_vvg_client.py, install_*.py, sim_worker 日志 | pytest 全绿 + 真机进车库 + join | b89dbf9 等 | 2026-09-12 |
+| 10 | TASK-M4 | 薄客户端补丁 | 已完成 | src/client/vvg_client/**, mod_vvg_client.py, install_*.py, offline_entry, worker_starter, sim_worker 日志 | pytest 全绿 + 真机进车库 + player/worker join | b89dbf9…09aac72 | 2026-09-12 |
 
 ## 状态说明
 
