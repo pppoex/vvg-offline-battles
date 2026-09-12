@@ -295,3 +295,20 @@
   - DECISIONS：协议采用 JSON lines over TCP
   - 分析计划 `05-migration-and-sdk-plan.md` §4.1 / §5.1
 - **状态**：已执行（M2）
+
+## 决策：M3 sim-worker 以 socketserver 骨架落地，复用 protocol builder
+
+- **背景**：需要权威服务器；参考项目 lan_battle_server.py 为 15k 行巨石，不能整文件复制
+- **选项**：
+  1. 模块化骨架（main/server/tick/room/session）+ 复用 src/protocol
+  2. 直接搬运参考项目全量战斗逻辑
+  3. asyncio 重写
+- **结论**：选项 1
+- **影响**：
+  - M3 只交付握手/房间/tick/快照，不含运动积分与射击
+  - 每连接一线程 + 全局 RLock；TickLoop 与参考项目同思路
+  - M6 再拆迁 Offline drive/shooting
+- **证据**：
+  - `docs/analysis/05-migration-and-sdk-plan.md` §5.2
+  - 参考 `lan_battle_server.py` ThreadedTCPServer + tick loop
+- **状态**：已执行（M3）

@@ -4,94 +4,91 @@
 
 ## 当前阶段
 
-**M2 完成：协议与序列化，单测全绿**
+**M3 完成：sim-worker 权威服务器骨架，unit+integration 全绿**
 
-M0 多实例、M1 SDK 骨架、M2 协议层均已完成。
+M0 多实例、M1 SDK、M2 协议、M3 服务器骨架均已完成。
 
 远程仓库：https://github.com/pppoex/vvg-offline-battles
 
 ## 最后 commit
 
-- **hash**: `59cf674`
-- **message**: `docs(agent): M2 收尾回填 commit hash [TASK-M2]`
-- **业务 commit**: `2ae17fe` `feat(protocol): 实现 JSON lines 协议层与能力协商 [TASK-M2]`
-- **已推送**: `master` → `origin/main`
+- **hash**: 见本轮 PROGRESS / git log（M3 业务 commit）
+- **message**: `feat(sim_worker): 实现 TCP 服务器骨架与 30Hz tick [TASK-M3]`
+- **已推送**: 见 git status（本轮结束 push origin master:main）
 
 ## 已完成
 
 1. **TASK-000 ~ TASK-007**: 初始化与第一阶段只读分析
-2. **TASK-M0 ~ M0.F**: 多实例限制解除（双开验证通过，已推 GitHub）
+2. **TASK-M0 ~ M0.F**: 多实例限制解除（双开验证通过）
 3. **TASK-M1**: 项目骨架与 SDK 抽取
 4. **TASK-M2**: 协议与序列化
-   - `src/protocol/__init__.py` — 包入口
-   - `src/protocol/constants.py` — PROTOCOL_VERSION=5、消息类型、限制、端口 28782
-   - `src/protocol/messages.py` — hello/welcome/input/roster/snapshot 等 builder + 校验
-   - `src/protocol/serializer.py` — JSON lines encode/decode + LineDecoder 粘包
-   - `src/protocol/capabilities.py` — 能力名与 negotiate()
-   - `tests/unit/test_protocol.py` / `test_serializer.py`
-   - `docs/design/protocol.md` — 协议文档
-   - 验证：`python -m pytest tests/unit -q` 全绿；`D:\Python27` 下 protocol 可编译
+5. **TASK-M3**: sim-worker 权威服务器骨架
+   - `src/sim_worker/main.py` — CLI
+   - `src/sim_worker/server.py` — TCP + 握手 + 分发 + 广播
+   - `src/sim_worker/session.py` — 会话
+   - `src/sim_worker/tick.py` — 30 Hz TickLoop
+   - `src/sim_worker/room/lobby.py` / `room.py` — 大厅与房间
+   - `tests/integration/test_server.py` + `client_util.py`
+   - `docs/design/sim_worker.md`
+   - 验证：`python -m pytest tests/unit tests/integration -q` 全绿
 
 ## 未完成
 
-1. **M3: sim-worker 权威服务器**（下一个里程碑）
-2. **M4: 薄客户端补丁**
-3. **M5-M9**: 后续里程碑
-4. **WGC cleanup thunk x64 RVA 逆向**（低优先级，句柄枚举方案已可用）
+1. **M4: 薄客户端补丁**（下一个里程碑）
+2. **M5-M9**: 后续里程碑
+3. 运动积分 / 射击 / Bot / 重连（M6-M8，M3 仅骨架）
+4. **WGC cleanup thunk x64 RVA 逆向**（低优先级）
 5. **install_atmosphere_owner_guard**（0.9.22 专属，不阻塞）
 
 ## 正在处理
 
-- M2 刚完成；等待进入 M3
+- M3 刚完成；等待进入 M4（薄客户端）
 
 ## 下一步建议
 
-进入 **M3: sim-worker 权威服务器**：
+进入 **M4: 薄客户端补丁**：
 
-1. 创建 `src/sim_worker/`：`main.py` / `server.py` / `tick.py` / `room/`
-2. TCP 服务器收 hello → 能力协商 → welcome；广播 roster
-3. 30 Hz tick 循环（`SERVER_TICK_HZ`）；快照 15 Hz
-4. 复用 `src/protocol` 的 serializer / messages
-5. 集成测试 `tests/integration/test_server.py`
-6. 参考 `server/lan_battle_server.py` 架构 + `docs/analysis/05-migration-and-sdk-plan.md` §5.2
+1. `src/client/network/` — 客户端 TCP + LineDecoder
+2. 复用 `src/protocol` 发 hello / 收 welcome / snapshot
+3. BigWorld hook 与 mod 加载（.pyc / Python 2.7）
+4. 客户端预测占位（M6 再完善）
+5. 集成测试 `tests/integration/test_client.py`
+6. 注意：客户端路径必须 2/3 兼容且仅标准库
 
 ## 关键文件
 
-### M2（本轮）
+### M3（本轮）
 
-- `src/protocol/constants.py`
-- `src/protocol/messages.py`
-- `src/protocol/serializer.py`
-- `src/protocol/capabilities.py`
-- `tests/unit/test_protocol.py`
-- `tests/unit/test_serializer.py`
+- `src/sim_worker/server.py`
+- `src/sim_worker/tick.py`
+- `src/sim_worker/room/room.py`
+- `src/sim_worker/room/lobby.py`
+- `src/sim_worker/session.py`
+- `src/sim_worker/main.py`
+- `tests/integration/test_server.py`
+- `docs/design/sim_worker.md`
+
+### M2
+
+- `src/protocol/**`
 - `docs/design/protocol.md`
 
 ### M1
 
+- `src/sdk/**`
 - `pyproject.toml`
-- `src/sdk/hooks.py`
-- `src/sdk/log.py`
-- `src/sdk/config.py`
-- `src/sdk/math/vector.py`
-- `src/sdk/math/matrix.py`
-- `tests/unit/test_sdk_*.py`
 
 ### M0
 
-- `src/multiclient/native/instance_guard.c`
-- `src/multiclient/native/worker_starter.c`
-- `src/multiclient/instance_guard.py`
+- `src/multiclient/**`
 - `src/client/mod_vvg_instance_guard.py`
-- `src/client/vvg_instance_guard/bootstrap.py`
-- `src/deploy/install_multiclient.py`
 
 ### 分析 / 设计文档
 
-- `docs/design/protocol.md` — M2 协议规范
-- `docs/analysis/05-migration-and-sdk-plan.md` — 迁移计划
-- `docs/analysis/multiclient-research.md` — M0 逆向报告
-- `docs/agent/MILESTONES.md` — 里程碑总览
+- `docs/design/protocol.md`
+- `docs/design/sim_worker.md`
+- `docs/analysis/05-migration-and-sdk-plan.md`
+- `docs/agent/MILESTONES.md`
 
 ### 源项目（只读）
 
@@ -101,38 +98,33 @@ M0 多实例、M1 SDK 骨架、M2 协议层均已完成。
 
 ## 关键发现
 
-### 协议（M2）
+### M3 服务器
 
-- 参考项目 v5：JSON lines、紧凑分隔符、hello 必须为首条消息
-- ping/pong 携带 `seq` + `client_time` / `server_time`
-- 能力列表：list[str]，≤32 项，必选 `core_session_v1`
-- 服务器错误：`{"type":"error","code":...,"message":...}`
-- 状态屏障与 snapshot 分离，避免快照冲掉 roster/welcome
+- 协议层完全复用 `protocol.messages` builder，禁止另起 envelope
+- Tick 与 TCP 分线程；房间状态用 `RLock`
+- 快照仅在 `phase==battle` 且每 `tick_hz/snapshot_hz` tick 广播
+- 新玩家：先 `welcome` 再给本人 `roster`，再广播给他人
+- `leave_battle` 简化为整房回 waiting（后续细化）
 
-### SDK（M1，仍有效）
+### 协议 / SDK（仍有效）
 
-- Offline hooks/log 有 Decompyle artifact，SDK 已重写
-- config 不复制 Offline 882 行单机参数
-- 欧拉角 R = Ry·Rx·Rz；pitch 向上抬为负
-
-### 运行时
-
-- 宿主 Python 3.14；游戏内嵌 Python 2.7 无 `_ctypes`
-- SDK / protocol 须 2/3 兼容
-- 主互斥体：`WOT_STARTUP_MUTEX`；.pyc magic=62211
+- PROTOCOL_VERSION=5；端口 28782；必选能力 `core_session_v1`
+- 客户端 Python 2.7；服务器 Python 3；protocol/sdk 双兼容
+- 主互斥体 `WOT_STARTUP_MUTEX`；.pyc magic=62211
 
 ## 风险
 
-1. snapshot.payload / events schema 在 M3 收紧时若破坏 envelope，M4 适配成本高 — 尽量只增字段
-2. sim-worker 迁移 Offline 大文件时仍需去 BigWorld 依赖
-3. 宿主无法加载 Py2.7 pyd 作扩展 — 真机验证以游戏日志为准
+1. M4 客户端若改变消息语义，M3 房间逻辑需小幅适配
+2. 真实战斗逻辑（drive/shooting）迁入时需拆分 Offline 大文件
+3. 宿主无法加载 Py2.7 pyd — 游戏内验证以日志为准
 
 ## 待用户确认
 
 1. ~~M0 真机双开~~ — 已通过
-2. ~~继续 M1~~ — 已完成
-3. ~~继续 M2~~ — 已完成
-4. 是否继续 **M3（sim-worker 权威服务器）**
+2. ~~M1 / M2~~ — 已完成
+3. ~~M3~~ — 骨架完成
+4. 是否继续 **M4（薄客户端补丁）**
+5. Bot AI 范围 / 单人模式：DECISIONS 已倾向「基础 Bot」「单人也启 sim-worker」，M6 前最终确认即可
 
 ## 禁止事项提醒
 
