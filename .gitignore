@@ -42,6 +42,12 @@ htmlcov/
 *.pkg
 *.wgpdc
 
+# Build artifacts (native)
+src/multiclient/native/out/
+*.obj
+*.exp
+*.lib
+
 # Large binaries
 assets/*.bin
 assets/*.dat
