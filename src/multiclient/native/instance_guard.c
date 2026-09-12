@@ -228,6 +228,14 @@ static int validate_host(unsigned char *base)
 static PyObject *python_int(long value)
 {
     if (g_py_int_from_long == 0) {
+        /* Resolve on demand if vvg_init_bridge has not run / failed early. */
+        HMODULE python = GetModuleHandleW(L"python27.dll");
+        if (python != 0) {
+            g_py_int_from_long = (PyIntFromLongFn)(void *)
+                GetProcAddress(python, "PyInt_FromLong");
+        }
+    }
+    if (g_py_int_from_long == 0) {
         return 0;
     }
     return g_py_int_from_long(value);
@@ -677,26 +685,57 @@ __declspec(dllexport) int __cdecl vvg_init_bridge(void)
     unsigned char *base = (unsigned char *)GetModuleHandleW(0);
     HMODULE python;
 
+    /*
+     * Always resolve Python symbols first so extension methods can return
+     * PyInt even when host PE validation fails (unit tests / non-game hosts).
+     * g_python_ready + g_image_base still gate mutex release.
+     */
+    python = GetModuleHandleW(L"python27.dll");
+    if (python == 0) {
+        g_image_base = 0;
+        g_python_ready = 0;
+        g_py_int_from_long = 0;
+        return 0;
+    }
+    g_py_int_from_long = (PyIntFromLongFn)(void *)
+        GetProcAddress(python, "PyInt_FromLong");
+    if (g_py_int_from_long == 0) {
+        g_image_base = 0;
+        g_python_ready = 0;
+        return 0;
+    }
+    (void)load_nt_apis();
     if (!validate_host(base)) {
         g_image_base = 0;
         g_python_ready = 0;
         return 0;
     }
     g_image_base = base;
-    python = GetModuleHandleW(L"python27.dll");
-    if (python == 0) {
-        g_python_ready = 0;
-        return 0;
-    }
-    g_py_int_from_long = (PyIntFromLongFn)(void *)
-        GetProcAddress(python, "PyInt_FromLong");
-    if (g_py_int_from_long == 0) {
-        g_python_ready = 0;
-        return 0;
-    }
-    (void)load_nt_apis();
     g_python_ready = 1;
     return 1;
+}
+
+
+/* C exports used by the Python extension wrappers below. */
+__declspec(dllexport) long __cdecl vvg_validate_host(void);
+__declspec(dllexport) int __cdecl vvg_init_bridge(void);
+
+
+static PyObject *validate_host_py(PyObject *unused_self,
+        PyObject *unused_args)
+{
+    (void)unused_self;
+    (void)unused_args;
+    return python_int(vvg_validate_host());
+}
+
+
+static PyObject *init_bridge_py(PyObject *unused_self,
+        PyObject *unused_args)
+{
+    (void)unused_self;
+    (void)unused_args;
+    return python_int((long)vvg_init_bridge());
 }
 
 
@@ -722,6 +761,14 @@ static PyMethodDef MODULE_METHODS[] = {
         "show_process_windows", show_process_windows, METH_NOARGS,
         "Restore top-level windows previously hidden by this module."
     },
+    {
+        "validate_host", validate_host_py, METH_NOARGS,
+        "Return 0 when the host PE identity matches this build."
+    },
+    {
+        "init_bridge", init_bridge_py, METH_NOARGS,
+        "Resolve python27 symbols for the current host process."
+    },
     {0, 0, 0, 0}
 };
 
@@ -730,9 +777,15 @@ __declspec(dllexport) void __cdecl initvvg_instance_guard_native(void)
 {
     PyInitModule4_64Fn init_module;
 
-    if (!vvg_init_bridge()) {
-        return;
-    }
+    /*
+     * Always register methods even when vvg_init_bridge fails (host PE
+     * mismatch outside the client, or python27 symbols missing).  Importing
+     * as a C extension is the primary load path inside the game because the
+     * embedded interpreter has no _ctypes.  Early-return without
+     * Py_InitModule4_64 made imp.load_dynamic fail outside the game and
+     * hid useful status codes.
+     */
+    (void)vvg_init_bridge();
     init_module = (PyInitModule4_64Fn)(void *)
         GetProcAddress(GetModuleHandleW(L"python27.dll"), "Py_InitModule4_64");
     if (init_module == 0) {

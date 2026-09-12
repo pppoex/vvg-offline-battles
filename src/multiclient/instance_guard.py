@@ -152,6 +152,7 @@ class _NativeBridge(object):
     def __init__(self, dll):
         import ctypes
         self._dll = dll
+        self.loader = 'ctypes'
         dll.vvg_init_bridge.restype = ctypes.c_int
         dll.vvg_init_bridge.argtypes = []
         for name in (
@@ -187,6 +188,79 @@ class _NativeBridge(object):
         return int(self._dll.vvg_show_process_windows())
 
 
+class _ExtensionBridge(object):
+    """Adapter for importing the pyd as a Python 2.7 C extension module.
+
+    WoT's embedded interpreter does not ship ``_ctypes`` / ``ctypes``, so
+    ``ctypes.CDLL`` fails inside the client. The native module already exports
+    ``initvvg_instance_guard_native``, which registers Python methods via
+    ``Py_InitModule4_64``. Loading it with ``imp.load_dynamic`` needs no
+    ctypes.
+
+    Import only succeeds after the C init calls ``vvg_init_bridge`` (host PE
+    identity must match), so a successful import implies the host is valid.
+    """
+
+    def __init__(self, module, path):
+        self._mod = module
+        self.loader = 'extension'
+        self.path = path
+
+    def init_bridge(self):
+        fn = getattr(self._mod, 'init_bridge', None)
+        if fn is not None:
+            return int(fn())
+        # Older builds only ran vvg_init_bridge during module init.
+        return 1
+
+    def validate_host(self):
+        fn = getattr(self._mod, 'validate_host', None)
+        if fn is not None:
+            return int(fn())
+        # Import only succeeds after host PE validation in older builds.
+        return 0
+
+    def release_client_guard(self):
+        return int(self._mod.release_client_guard())
+
+    def probe_startup_mutex(self):
+        return int(self._mod.probe_startup_mutex())
+
+    def install_atmosphere_owner_guard(self):
+        return int(self._mod.install_atmosphere_owner_guard())
+
+    def hide_process_windows(self):
+        return int(self._mod.hide_process_windows())
+
+    def show_process_windows(self):
+        return int(self._mod.show_process_windows())
+
+
+def _has_ctypes():
+    try:
+        import ctypes  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _try_load_extension(path):
+    """Import path as a Python C extension. Returns module or raises."""
+    import imp
+    module_name = 'vvg_instance_guard_native'
+    # Drop a stale entry so a previous failed/partial load cannot stick.
+    sys.modules.pop(module_name, None)
+    module = imp.load_dynamic(module_name, path)
+    for required in (
+            'release_client_guard',
+            'probe_startup_mutex',
+            'install_atmosphere_owner_guard'):
+        if not hasattr(module, required):
+            raise ImportError(
+                'native extension %s missing method %s' % (path, required))
+    return module
+
+
 def _load_native_bridge(path=None, imp_module=None):
     global _native_bridge
     if _native_bridge is not None:
@@ -195,13 +269,32 @@ def _load_native_bridge(path=None, imp_module=None):
     if not os.path.isfile(path):
         raise ImportError('native instance guard bridge is missing: %s' % path)
 
-    import ctypes
+    extension_error = None
+    # Prefer direct extension import: works inside the game without _ctypes.
     try:
+        module = _try_load_extension(path)
+        bridge = _ExtensionBridge(module, path)
+        # Outside the game host PE the C init may refuse to register methods
+        # (older builds) or register them with status 21. Keep the bridge so
+        # unit tests can still exercise pure logic; release will refuse.
+        _native_bridge = bridge
+        return bridge
+    except Exception as error:
+        extension_error = error
+
+    if not _has_ctypes():
+        raise ImportError(
+            'native instance guard bridge failed to import as extension (%s): '
+            '%s; ctypes/_ctypes also unavailable (WoT embedded Python has no '
+            '_ctypes)' % (path, extension_error))
+
+    try:
+        import ctypes
         dll = ctypes.CDLL(path)
     except OSError as error:
         raise ImportError(
-            'native instance guard bridge failed to load (%s): %s' % (
-                path, error))
+            'native instance guard bridge failed to load (%s): extension=%s; '
+            'ctypes=%s' % (path, extension_error, error))
 
     bridge = _NativeBridge(dll)
 

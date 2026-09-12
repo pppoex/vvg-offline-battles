@@ -129,6 +129,48 @@ class StatusMappingTests(unittest.TestCase):
         self.assertIn('16', str(err))
 
 
+class ExtensionLoaderTests(unittest.TestCase):
+    """Extension import path: no ctypes required inside the game."""
+
+    def test_has_ctypes_boolean(self):
+        self.assertIsInstance(ig._has_ctypes(), bool)
+
+    def test_try_load_extension_missing_file_raises(self):
+        with self.assertRaises((IOError, OSError, ImportError)):
+            ig._try_load_extension(os.path.join(ROOT, 'no_such_guard.pyd'))
+
+    def test_extension_bridge_method_names(self):
+        class FakeMod(object):
+            def release_client_guard(self):
+                return 0
+
+            def probe_startup_mutex(self):
+                return 16
+
+            def install_atmosphere_owner_guard(self):
+                return 22
+
+            def hide_process_windows(self):
+                return -1
+
+            def show_process_windows(self):
+                return 0
+
+            def validate_host(self):
+                return 0
+
+            def init_bridge(self):
+                return 1
+
+        bridge = ig._ExtensionBridge(FakeMod(), r'C:\fake\guard.pyd')
+        self.assertEqual(bridge.loader, 'extension')
+        self.assertEqual(bridge.release_client_guard(), 0)
+        self.assertEqual(bridge.probe_startup_mutex(), 16)
+        self.assertEqual(bridge.install_atmosphere_owner_guard(), 22)
+        self.assertEqual(bridge.validate_host(), 0)
+        self.assertEqual(bridge.init_bridge(), 1)
+
+
 class OptionalNativeTests(unittest.TestCase):
     """Exercise the compiled bridge when the artifact is present."""
 
@@ -160,6 +202,24 @@ class OptionalNativeTests(unittest.TestCase):
         # and init_bridge may return 0. Both are acceptable for unit tests.
         status = bridge.validate_host()
         self.assertIn(status, (0, 1))
+        self.assertIn(getattr(bridge, 'loader', 'ctypes'), ('extension', 'ctypes'))
+
+    def test_extension_preferred_when_loadable(self):
+        drop = os.path.join(ROOT, 'dist', 'multiclient')
+        path = os.path.join(drop, 'vvg_instance_guard_native.pyd')
+        if not os.path.isfile(path):
+            path = os.path.join(
+                MULTICLIENT, 'native', 'out', 'vvg_instance_guard_native.pyd')
+        if not os.path.isfile(path):
+            self.skipTest('native bridge not built yet')
+        ig.reset_state_for_tests()
+        try:
+            bridge = ig._load_native_bridge(path=path)
+        except ImportError:
+            self.skipTest('extension load not available in this host')
+        else:
+            # Prefer extension when the pyd registers module methods.
+            self.assertEqual(getattr(bridge, 'loader', None), 'extension')
 
     def test_atmosphere_status_constant(self):
         self.assertEqual(ig.GUARD_STATUS_ATMOSPHERE_UNSUPPORTED, 22)

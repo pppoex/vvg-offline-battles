@@ -49,10 +49,40 @@ def init():
     _started = True
 
     mode = _client_mode()
-    _log('init mode=%s allow_multi=%s' % (
-        mode or 'unknown',
-        '1' if instance_guard._multiple_clients_requested(os.environ)
-        else '0'))
+    allow = instance_guard._multiple_clients_requested(os.environ)
+    _log('mod entry loaded mode=%s allow_multi=%s' % (
+        mode or 'unknown', '1' if allow else '0'))
+    _log('env VVG_ALLOW_MULTIPLE_CLIENTS=%s' % (
+        os.environ.get('VVG_ALLOW_MULTIPLE_CLIENTS'),))
+    _log('env VVG_CLIENT_MODE=%s' % os.environ.get('VVG_CLIENT_MODE'))
+    _log('env VVG_INSTANCE_GUARD_PATH=%s' % (
+        os.environ.get('VVG_INSTANCE_GUARD_PATH'),))
+
+    try:
+        has_ctypes = instance_guard._has_ctypes()
+    except AttributeError:
+        try:
+            import ctypes  # noqa: F401
+            has_ctypes = True
+        except ImportError:
+            has_ctypes = False
+    _log('ctypes/_ctypes available=%s' % ('1' if has_ctypes else '0'))
+
+    try:
+        native_path = instance_guard._native_bridge_path()
+        _log('native bridge path=%s exists=%s' % (
+            native_path, '1' if os.path.isfile(native_path) else '0'))
+    except Exception as path_error:
+        native_path = None
+        _log('native bridge path resolve failed: %s' % path_error)
+
+    if allow:
+        try:
+            bridge = instance_guard._load_native_bridge()
+            loader = getattr(bridge, 'loader', 'unknown')
+            _log('native bridge loaded via=%s' % loader)
+        except Exception as load_error:
+            _log('native bridge load failed: %s' % load_error)
 
     try:
         _client_guard_released = bool(instance_guard.release_if_requested())

@@ -4,16 +4,19 @@
 
 ## 当前阶段
 
-**M0.1：多实例守卫已接入游戏 mod 并部署**
+**M0.3：双开 "already running" 根因修复 — 游戏无 `_ctypes`，改用扩展导入**
 
-M0 native 实现已落地；本轮补齐 **游戏内调用点**（BigWorld mod）与部署脚本，
-修复 `--player` 清除多开环境变量的 bug。
+M0.1/M0.2 后真机仍弹 already running。日志证明 mod **已加载**，失败点是
+`No module named _ctypes`（WoT 内嵌 Python 2.7 无 `_ctypes`）。
+
+本轮修复：`imp.load_dynamic` 直接导入 native pyd 作为 C 扩展，绕过 ctypes。
 
 ## 最后 commit
 
-- **hash**: `3e9e969`（本轮后更新）
-- **message**: `feat(multiclient): 接入游戏 mod 释放实例守卫 [TASK-M0.1]`
-- **文件**: src/client/**, src/deploy/install_multiclient.py, src/multiclient/**, tests/unit/, docs/**
+- **hash**: （本轮 commit）
+- **message**: `fix(multiclient): 游戏内用扩展导入替代 ctypes 释放守卫 [TASK-M0.3]`
+- **文件**: src/multiclient/instance_guard.py, src/multiclient/native/instance_guard.c,
+  src/client/vvg_instance_guard/bootstrap.py, tests/unit/, docs/analysis/multiclient-debug-log.md
 
 ## 已完成
 
@@ -42,6 +45,17 @@ M0 native 实现已落地；本轮补齐 **游戏内调用点**（BigWorld mod�
      实际 Python 2.7 magic = 62211 = 0xF303 → 字节 `03 f3 0d 0a`
    - 新增单测 `test_compile_pyc_magic_is_py27`；Py2.7 下 23/23 通过
    - 游戏目录已部署 4 个 `.pyc`（magic 均已独立验证）
+11. **TASK-M0.3**: 双开 still already running 根因修复
+   - **根因**：游戏日志 `release failed: No module named _ctypes`；
+     mod 已加载但 `ctypes.CDLL` 在内嵌 Python 不可用
+   - **修复**：`_load_native_bridge` 优先 `imp.load_dynamic` 导入 pyd
+     为 C 扩展；ctypes 仅作宿主回退
+   - **native**：`vvg_init_bridge` 先解析 `PyInt_FromLong` 再做 host 校验；
+     扩展始终注册方法；新增 `validate_host`/`init_bridge` Python 方法
+   - **诊断日志**：bootstrap 打印 env / ctypes / path / loader
+   - 详见 `docs/analysis/multiclient-debug-log.md`
+   - 已重新编译 pyd/exe 并部署；Py2.7 单测 **27/27 通过**
+   - 扩展导入烟测：loader=extension, release=21（游戏外 host 不匹配，正常）
 
 ## 未完成
 
@@ -52,14 +66,17 @@ M0 native 实现已落地；本轮补齐 **游戏内调用点**（BigWorld mod�
 
 ## 正在处理
 
-- M0.1 + M0.2 交付完成；等待用户真机双开确认（mod 以 .pyc 加载）
+- M0.3 修复已部署；等待用户真机双开确认
 
 ## 下一步建议
 
-1. 用 `win64\vvg_worker_starter.exe --player` 开满第一个客户端到登录界面
-2. 再用第二个 `vvg_worker_starter.exe --player` 开第二个，确认无 “already running”
-3. 若仍有对话框：用 Process Explorer 查 `WOT_STARTUP_MUTEX` 是否带额外前缀（V1）
-4. 查游戏 python 日志是否出现 `[VVG instance guard] released ...`
+1. 完全退出所有 WoT 进程
+2. 用 `win64\vvg_worker_starter.exe --player` 开满第一个客户端到登录界面
+3. 再用第二个 `vvg_worker_starter.exe --player` 开第二个，确认无 “already running”
+4. 查 `vvg-player-python.log` / `vvg-worker-python.log`：
+   - 应有 `native bridge loaded via=extension`
+   - 应有 `released startup/WGC mutexes for multi-client`
+5. 若仍有对话框：用 Process Explorer 查 `WOT_STARTUP_MUTEX` 是否带额外前缀（V1）
 
 ## 关键文件
 
@@ -121,6 +138,9 @@ M0 native 实现已落地；本轮补齐 **游戏内调用点**（BigWorld mod�
 - **M0.2**：客户端只加载 res_mods 中的 `.pyc`；
   Python 2.7 bytecode magic = 62211 (`03 f3 0d 0a`)；
   部署必须用 Py2.7 编译，不可用 Py3 的 py_compile
+- **M0.3**：内嵌 Python **无 `_ctypes`**，`ctypes` 不可用；
+  必须用 `imp.load_dynamic` 把 pyd 当 C 扩展导入；
+  日志文件是 `vvg-*-python.log` 而非 `python.log`（starter `--logFilePrefix`）
 
 ## 风险
 
