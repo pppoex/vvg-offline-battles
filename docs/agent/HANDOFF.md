@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-**M4 完成：薄客户端补丁骨架，unit+integration 全绿**
+**M4 完成：薄客户端骨架 + 真机验证通过（进车库 + sim-worker join）**
 
 M0 多实例、M1 SDK、M2 协议、M3 服务器骨架、M4 薄客户端均已完成。
 
@@ -12,8 +12,8 @@ M0 多实例、M1 SDK、M2 协议、M3 服务器骨架、M4 薄客户端均已�
 
 ## 最后 commit
 
-- **hash**: `b89dbf9`
-- **message**: `feat(client): 实现薄客户端网络层与协议会话 [TASK-M4]`
+- **hash**: `6e08cd1`（及后续 docs）
+- **message**: M4 真机联调收尾
 - **已推送**: `master` → `origin/main`
 
 ## 已完成
@@ -23,15 +23,14 @@ M0 多实例、M1 SDK、M2 协议、M3 服务器骨架、M4 薄客户端均已�
 3. **TASK-M1**: 项目骨架与 SDK 抽取
 4. **TASK-M2**: 协议与序列化
 5. **TASK-M3**: sim-worker 权威服务器骨架
-6. **TASK-M4**: 薄客户端补丁（骨架）
-   - `src/client/mod_vvg_client.py` — BigWorld 入口
-   - `src/client/vvg_client/network/` — TcpLineConnection / BattleClient / ReconnectPolicy
-   - `src/client/vvg_client/prediction/` — LocalPlayer / SnapshotBuffer 占位
-   - `src/client/vvg_client/session.py` / `bootstrap.py` / `hooks/`
-   - `src/deploy/install_client.py` — res_mods 部署 + .pyc
-   - `tests/unit/test_client_network.py` + `tests/integration/test_client.py`
-   - `docs/design/thin_client.md`
-   - 验证：`python -m pytest tests/unit tests/integration -q` 全绿；Py2.7 py_compile 全过
+6. **TASK-M4**: 薄客户端补丁
+   - `src/client/vvg_client/**` — 网络 / 预测占位 / session / hooks
+   - `src/client/mod_vvg_client.py` — BigWorld 入口（init 永不抛异常）
+   - `src/deploy/install_client.py` / `install_offhangar.py`
+   - `src/client/offline_entry/mod_offhangar2.py` — 修复 Decompyle 入口
+   - sim-worker 接入/离开/开战日志
+   - 单测 + 集成测试全绿；Py2.7 可编译
+   - **真机**：能进车库；`handshake ok`；sim-worker `join player_id=...`
 
 ## 未完成
 
@@ -43,7 +42,7 @@ M0 多实例、M1 SDK、M2 协议、M3 服务器骨架、M4 薄客户端均已�
 
 ## 正在处理
 
-- M4 刚完成；等待进入 M5（启动器）
+- M4 真机通过；等待进入 M5（启动器）
 
 ## 下一步建议
 
