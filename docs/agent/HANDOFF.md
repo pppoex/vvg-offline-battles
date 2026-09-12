@@ -12,7 +12,7 @@ M0 多实例、M1 SDK、M2 协议、M3 服务器骨架、M4 薄客户端均已�
 
 ## 最后 commit
 
-- **hash**: 见本轮业务 commit（feat(client): … [TASK-M4]）
+- **hash**: `b89dbf9`
 - **message**: `feat(client): 实现薄客户端网络层与协议会话 [TASK-M4]`
 - **已推送**: `master` → `origin/main`
 
