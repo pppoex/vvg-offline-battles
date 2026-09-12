@@ -8,7 +8,10 @@ from __future__ import absolute_import, division, print_function
 
 import time
 
-from protocol.capabilities import DEFAULT_CLIENT_CAPABILITIES
+from protocol.capabilities import (
+    CAP_SIMULATION_WORKER_V1,
+    DEFAULT_CLIENT_CAPABILITIES,
+)
 from protocol.constants import (
     CLIENT_BUILD,
     DEFAULT_SERVER_HOST,
@@ -22,6 +25,8 @@ from protocol.constants import (
     MSG_SNAPSHOT,
     MSG_WELCOME,
     PHASE_WAITING,
+    ROLE_PLAYER,
+    ROLE_WORKER,
 )
 from protocol.messages import (
     build_battle_ready,
@@ -54,15 +59,19 @@ class BattleClient(object):
 
     def __init__(self, name, vehicle, host=None, port=None,
                  capabilities=None, client_build=None, account_key=None,
-                 max_health=None, requested_team=None, poll_limit=64):
+                 max_health=None, requested_team=None, poll_limit=64,
+                 role=ROLE_PLAYER):
         self.name = name
         self.vehicle = vehicle
+        self.role = role if role in (ROLE_PLAYER, ROLE_WORKER) else ROLE_PLAYER
         self.client_build = client_build or CLIENT_BUILD
         self.account_key = account_key
         self.max_health = max_health
         self.requested_team = requested_team
         if capabilities is None:
             self.capabilities = list(DEFAULT_CLIENT_CAPABILITIES)
+            if self.role == ROLE_WORKER:
+                self.capabilities.append(CAP_SIMULATION_WORKER_V1)
         else:
             self.capabilities = list(capabilities)
         self.poll_limit = int(poll_limit)
@@ -118,6 +127,14 @@ class BattleClient(object):
         return self.connection.connected
 
     def build_hello_message(self):
+        if self.role == ROLE_WORKER:
+            return build_hello(
+                name=self.name or None,
+                vehicle=None,
+                capabilities=self.capabilities,
+                client_build=self.client_build,
+                role=ROLE_WORKER,
+            )
         return build_hello(
             name=self.name,
             vehicle=self.vehicle,
@@ -126,6 +143,7 @@ class BattleClient(object):
             account_key=self.account_key,
             max_health=self.max_health,
             requested_team=self.requested_team,
+            role=ROLE_PLAYER,
         )
 
     def connect(self, timeout=3.0, send_hello=True):

@@ -32,6 +32,7 @@ from protocol.constants import (
     PHASE_BATTLE,
     PHASE_WAITING,
     ROLE_PLAYER,
+    ROLE_WORKER,
     PROTOCOL_VERSION,
 )
 from protocol.messages import (
@@ -407,7 +408,7 @@ class GameServer(object):
             return None, (ERROR_PROTOCOL_MISMATCH, 'protocol mismatch')
 
         role = hello.get('role') or ROLE_PLAYER
-        if role != ROLE_PLAYER:
+        if role not in (ROLE_PLAYER, ROLE_WORKER):
             return None, (ERROR_UNSUPPORTED_ROLE, 'unsupported role')
 
         try:
@@ -423,8 +424,15 @@ class GameServer(object):
 
         name = hello.get('name')
         vehicle = hello.get('vehicle')
-        if not name or not vehicle:
-            return None, (ERROR_INVALID_HELLO, 'player hello requires name and vehicle')
+        if role == ROLE_PLAYER:
+            if not name or not vehicle:
+                return None, (
+                    ERROR_INVALID_HELLO,
+                    'player hello requires name and vehicle')
+        else:
+            # simulation worker：占位身份，不占用车库玩家语义
+            name = name or 'worker'
+            vehicle = vehicle or 'worker'
 
         requested = hello.get('requested_team') or 0
         try:

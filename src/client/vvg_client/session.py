@@ -20,7 +20,7 @@ class ClientSession(object):
 
     def __init__(self, name, vehicle, host=None, port=None,
                  capabilities=None, client_build=None,
-                 reconnect_policy=None, interp_delay_ms=None):
+                 reconnect_policy=None, interp_delay_ms=None, role='player'):
         self.client = BattleClient(
             name=name,
             vehicle=vehicle,
@@ -28,6 +28,7 @@ class ClientSession(object):
             port=port,
             capabilities=capabilities,
             client_build=client_build,
+            role=role,
         )
         self.local_player = LocalPlayer()
         self.snapshots = SnapshotBuffer()

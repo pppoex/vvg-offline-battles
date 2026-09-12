@@ -116,6 +116,10 @@ def ensure_paths():
     return None
 
 
+def _client_mode():
+    return (os.environ.get('VVG_CLIENT_MODE') or '').strip().lower()
+
+
 def _identity_from_env():
     """Read player name / vehicle from environment (launcher sets these)."""
     name = (os.environ.get('VVG_PLAYER_NAME') or '').strip()
@@ -128,15 +132,25 @@ def _identity_from_env():
             port = int(port_raw)
         except ValueError:
             port = None
+    mode = _client_mode()
+    if mode == 'simulation_worker':
+        return {
+            'name': name or 'worker',
+            'vehicle': 'worker',
+            'host': host,
+            'port': port,
+            'role': 'worker',
+        }
     return {
         'name': name or 'Player',
         'vehicle': vehicle or 'ussr:R05_LT',
         'host': host,
         'port': port,
+        'role': 'player',
     }
 
 
-def create_session(name=None, vehicle=None, host=None, port=None):
+def create_session(name=None, vehicle=None, host=None, port=None, role=None):
     # Prefer package-relative import (works inside gui.mods.vvg_client).
     try:
         from .session import ClientSession
@@ -148,7 +162,28 @@ def create_session(name=None, vehicle=None, host=None, port=None):
         vehicle=vehicle or env['vehicle'],
         host=host or env['host'],
         port=port if port is not None else env['port'],
+        role=role or env['role'],
     )
+
+
+def _mark_worker_ready():
+    """Touch VVG_WORKER_READY_MARKER so worker_starter exits its wait loop."""
+    path = (os.environ.get('VVG_WORKER_READY_MARKER') or '').strip()
+    if not path:
+        return
+    try:
+        parent = os.path.dirname(path)
+        if parent and not os.path.isdir(parent):
+            os.makedirs(parent)
+        handle = open(path, 'wb')
+        try:
+            handle.write(b'ok\n')
+        finally:
+            handle.close()
+        _log('worker ready marker written: %s' % path)
+    except Exception as exc:
+        _log('worker ready marker failed: %s' % exc)
+
 
 
 def init(name=None, vehicle=None, host=None, port=None, auto_connect=True):
@@ -192,9 +227,11 @@ def init(name=None, vehicle=None, host=None, port=None, auto_connect=True):
         if welcome is None:
             _log('handshake failed: %s' % _session.last_error)
         else:
-            _log('handshake ok player_id=%s team=%s phase=%s' % (
+            _log('handshake ok player_id=%s team=%s phase=%s role=%s' % (
                 welcome.get('player_id'), welcome.get('team'),
-                welcome.get('phase')))
+                welcome.get('phase'), client.role))
+            if client.role == 'worker' or _client_mode() == 'simulation_worker':
+                _mark_worker_ready()
 
     try:
         try:
