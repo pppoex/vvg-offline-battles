@@ -152,3 +152,21 @@
   - 用户明确要求"第一阶段只做只读侦察、分析和方案设计，不要写业务代码"
   - 用户明确要求"在第一阶段完成并等我确认前，不要创建或修改任何业务代码"
 - **状态**：已执行
+
+## 决策：多实例守卫通过 res_mods 游戏 mod 在进程内释放
+
+- **背景**：M0 只交付了 native pyd + Python 接口，游戏内无人调用
+  `release_if_requested()`，双开仍弹 “already running”
+- **选项**：
+  1. 仅依赖 starter 环境变量（无效——不会被游戏执行）
+  2. DLL 注入到更早的 C++ 阶段
+  3. 仿 0.9.22：res_mods mod 在 Python init 时释放本进程互斥句柄
+- **结论**：选项 3
+- **影响**：
+  - 第一个客户端必须先过 mod init 再开第二个
+  - 与 0.9.22 行为对齐；mod 名独立为 `vvg_instance_guard`
+  - starter 对 player/worker 均设置 `VVG_ALLOW_MULTIPLE_CLIENTS=1`
+- **证据**：
+  - 参考 `offline_lan_0922/bootstrap.py` init() 调用 release_if_requested
+  - 用户复现：`vvg_worker_starter.exe --player` 第二实例弹对话框
+- **状态**：已部署到游戏目录附属文件

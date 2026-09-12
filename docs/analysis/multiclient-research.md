@@ -3,7 +3,7 @@
 > 分析时间：2026-09-12  
 > 目标：`D:\WOT\World_of_Tanks_EU_Offline_2.3.1.2\win64`  
 > 参考：0.9.22 #1513 的 `offline_instance_guard_native` 方案  
-> 状态：M0 可编译实现已落地；部分运行时结构标记为**待验证**
+> 状态：M0 + M0.1（游戏 mod 集成）已落地；真机双开待用户确认
 
 ## 1. PE 身份（已测量）
 
@@ -170,3 +170,49 @@ UTF-16 名称前缀：
 - 已确认可用 `python27.dll` 动态符号替代 RVA 桥接。
 - 已交付可编译的 x64 native guard + starter + Python 接口 + 单元测试。
 - cleanup thunk 与精确对象名运行时形态标记为**待验证**，并给出验证步骤。
+
+## 11. 游戏内集成（M0.1 — 2026-09-12）
+
+### 根因
+
+仅把 native pyd 放进 `win64/` **不会**解除互斥体。游戏进程内必须有人调用
+`instance_guard.release_if_requested()`。0.9.22 参考项目把这一步放在
+`res_mods/.../mods/offline_lan_0922/bootstrap.py` 的 `init()` 中。
+
+### 本项目落地方案
+
+仿照 0.9.22，增加最小 BigWorld mod：
+
+```
+res_mods/2.3.1.2/scripts/client/gui/mods/
+  mod_vvg_instance_guard.py          # 引擎入口 init()/fini()
+  vvg_instance_guard/
+    __init__.py
+    bootstrap.py                     # init 时调用 release_if_requested
+    instance_guard.py                # 与 src/multiclient 同源拷贝
+
+mods/2.3.1.2/vvg_instance_guard_native.pyd
+win64/vvg_instance_guard_native.pyd
+win64/vvg_worker_starter.exe
+```
+
+- 模名独立：`mod_vvg_instance_guard` / 包 `vvg_instance_guard`，不覆盖
+  Offline2.3.1.2 的 `mod_offhangar2`。
+- 部署：`python src/deploy/install_multiclient.py`（可写游戏目录的
+  res_mods / mods / win64 附属文件，不改 exe/dll/pkg）。
+- starter 两种模式（`--player` 与默认 worker）都设置：
+  - `VVG_ALLOW_MULTIPLE_CLIENTS=1`
+  - `VVG_INSTANCE_GUARD_PATH` → `win64\vvg_instance_guard_native.pyd`
+    （回退 `mods\2.3.1.2\...`）
+  - `VVG_CLIENT_MODE=player|simulation_worker`
+
+### 时序（与 0.9.22 相同）
+
+1. 第一个客户端启动 → C++ 创建 `WOT_STARTUP_MUTEX` → Python mod init →
+   释放互斥体。
+2. 第二个客户端启动（第一个已过 GUI/mod init）→ C++ 不再看到持有中的
+   互斥体 → 无 “already running” 对话框。
+3. 第二个客户端自己的 mod 再次释放本进程句柄，供第三个客户端使用。
+
+**注意**：第一个客户端必须先加载完 mod（到达登录/车库界面）再开第二个。
+在第一个进程仍处于早期 C++ 启动阶段时双开，仍可能弹出对话框。

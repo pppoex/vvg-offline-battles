@@ -4,15 +4,16 @@
 
 ## 当前阶段
 
-**M0 编码启动：多实例限制解除（2.3.1.2 x64）已落地**
+**M0.1：多实例守卫已接入游戏 mod 并部署**
 
-第一阶段分析已完成；本轮按用户任务进入 M0 实现。
+M0 native 实现已落地；本轮补齐 **游戏内调用点**（BigWorld mod）与部署脚本，
+修复 `--player` 清除多开环境变量的 bug。
 
 ## 最后 commit
 
-- **hash**: 待提交（本轮 M0 产物）
-- **message**: 建议 `feat(multiclient): 实现 2.3.1.2 x64 多实例守卫 [TASK-M0]`
-- **文件**: src/multiclient/**, docs/analysis/multiclient-research.md, tests/unit/test_instance_guard.py, tools/*.py
+- **hash**: 待提交（本轮 M0.1）
+- **message**: 建议 `feat(multiclient): 接入游戏 mod 释放实例守卫 [TASK-M0.1]`
+- **文件**: src/client/**, src/deploy/install_multiclient.py, src/multiclient/**, tests/unit/**
 
 ## 已完成
 
@@ -24,33 +25,36 @@
 6. **TASK-005**: 多实例限制专项分析
 7. **TASK-006**: 任务拆解与风险文档
 8. **TASK-M0**: 多实例 native 实现
-   - PE 逆向：Machine/TimeDateStamp/ImageBase/SizeOfImage 已测量
-   - 主互斥体：`WOT_STARTUP_MUTEX`（非 `EWOT_*`）
-   - Python：`python27.dll` 全量导出 `Py_InitModule4_64` / `PyInt_FromLong`
-   - 交付 native guard + worker starter + Python 接口 + 单测
-   - 编译成功；`unittest` 13/13 通过
+9. **TASK-M0.1**: 游戏 mod 集成
+   - `src/client/mod_vvg_instance_guard.py` — BigWorld 入口
+   - `src/client/vvg_instance_guard/bootstrap.py` — 调用 `release_if_requested`
+   - `src/deploy/install_multiclient.py` — 部署到 res_mods / mods / win64
+   - starter：player + worker 均设 `VVG_ALLOW_MULTIPLE_CLIENTS=1` 与
+     `VVG_INSTANCE_GUARD_PATH`
+   - path 解析支持 2.3.1.2 的 `win64/` + 根级 `mods/` 布局
+   - `unittest` 22/22 通过；已写入游戏目录附属文件
 
 ## 未完成
 
-1. **真机双开联机验证**（需用户在游戏内确认互斥体名与稳定性）
+1. **真机双开联机验证**（用户确认；需先开满第一个客户端再开第二个）
 2. **WGC cleanup thunk x64 RVA 逆向**（报告 V3；当前用句柄枚举替代）
-3. **install_atmosphere_owner_guard**（0.9.22 专属，2.3.1.2 返回 22，未实现 tick 补丁）
+3. **install_atmosphere_owner_guard**（0.9.22 专属，2.3.1.2 返回 22）
 4. **sim-worker 联机协议移植**（后续里程碑）
 
 ## 正在处理
 
-- M0 交付物已齐；等待真机验证与用户确认进入 M1
+- M0.1 交付完成；等待用户真机双开确认
 
 ## 下一步建议
 
-1. 用 `dist/multiclient/vvg_worker_starter.exe` 双开验证
-2. 在游戏进程内调用 `instance_guard.release_if_requested()` 验证 `WOT_STARTUP_MUTEX` 是否消失
-3. Process Explorer 确认真实对象名（报告 V1/V4）
-4. 若句柄关闭导致崩溃，转入 IDA 定位 cleanup thunk（V3）
+1. 用 `win64\vvg_worker_starter.exe --player` 开满第一个客户端到登录界面
+2. 再用第二个 `vvg_worker_starter.exe --player` 开第二个，确认无 “already running”
+3. 若仍有对话框：用 Process Explorer 查 `WOT_STARTUP_MUTEX` 是否带额外前缀（V1）
+4. 查游戏 python 日志是否出现 `[VVG instance guard] released ...`
 
 ## 关键文件
 
-### 本轮新增
+### M0
 
 - `src/multiclient/native/instance_guard.c`
 - `src/multiclient/native/worker_starter.c`
@@ -58,9 +62,14 @@
 - `src/multiclient/instance_guard.py`
 - `docs/analysis/multiclient-research.md`
 - `tests/unit/test_instance_guard.py`
-- `tools/scan_multiclient_strings.py`
-- `tools/analyze_wgc_2312.py`
-- `tools/analyze_mutex_names.py`
+
+### M0.1（本轮）
+
+- `src/client/mod_vvg_instance_guard.py`
+- `src/client/vvg_instance_guard/__init__.py`
+- `src/client/vvg_instance_guard/bootstrap.py`
+- `src/deploy/install_multiclient.py`
+- `tests/unit/test_bootstrap_and_deploy.py`
 
 ### 产物（不入库，见 .gitignore）
 
@@ -96,6 +105,10 @@
 - 主闸门：`WOT_STARTUP_MUTEX`（app.cpp）
 - WGC：`wgc_game_mtx_` / `wgc_running_games_mtx`；离线 WGC 软失败
 - 无 `wot_client_mutex` 完整字符串（仅孤立 `wot_client`）
+- **M0.1**：释放入口在 `mod_vvg_instance_guard.init()` →
+  `bootstrap.init()` → `instance_guard.release_if_requested()`
+- starter 必须设 `VVG_ALLOW_MULTIPLE_CLIENTS=1` **和**
+  `VVG_INSTANCE_GUARD_PATH`（player 与 worker 都要）
 
 ## 风险
 

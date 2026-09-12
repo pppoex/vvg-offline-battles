@@ -24,6 +24,7 @@
 #define PLAYER_MODE_VALUE L"player"
 #define MULTI_CLIENT_ENV L"VVG_ALLOW_MULTIPLE_CLIENTS"
 #define MULTI_CLIENT_VALUE L"1"
+#define GUARD_PATH_ENV L"VVG_INSTANCE_GUARD_PATH"
 #define HIDDEN_DESKTOP_ENV L"VVG_HIDDEN_DESKTOP"
 #define HIDDEN_DESKTOP_VALUE L"1"
 #define WORKER_READY_MARKER_ENV L"VVG_WORKER_READY_MARKER"
@@ -237,6 +238,46 @@ static int wait_for_worker_ready(HANDLE worker_process, HANDLE stop_event,
 }
 
 
+static int configure_instance_guard_env(BOOL worker)
+{
+    WCHAR guard_path[MAX_PATH];
+
+    /* Both worker and player clients must release WOT_STARTUP_MUTEX after
+     * the game mod loads.  Clearing the flag for --player made a second
+     * starter-launched client re-show "already running". */
+    if (!SetEnvironmentVariableW(MULTI_CLIENT_ENV, MULTI_CLIENT_VALUE)) {
+        return 0;
+    }
+    if (FAILED(StringCchCopyW(guard_path, MAX_PATH, g_root)) ||
+            FAILED(StringCchCatW(guard_path, MAX_PATH,
+                L"vvg_instance_guard_native.pyd"))) {
+        return 0;
+    }
+    if (GetFileAttributesW(guard_path) == INVALID_FILE_ATTRIBUTES) {
+        /* Prefer mods/<version>/ when the sidecar is not next to the exe. */
+        if (FAILED(StringCchCopyW(guard_path, MAX_PATH, g_root)) ||
+                FAILED(StringCchCatW(guard_path, MAX_PATH,
+                    L"mods\\2.3.1.2\\vvg_instance_guard_native.pyd"))) {
+            return 0;
+        }
+    }
+    if (!SetEnvironmentVariableW(GUARD_PATH_ENV, guard_path)) {
+        return 0;
+    }
+    if (worker) {
+        if (!SetEnvironmentVariableW(WORKER_MODE_ENV, WORKER_MODE_VALUE)) {
+            return 0;
+        }
+    } else {
+        if (!SetEnvironmentVariableW(WORKER_MODE_ENV, PLAYER_MODE_VALUE)) {
+            return 0;
+        }
+        SetEnvironmentVariableW(HIDDEN_DESKTOP_ENV, 0);
+    }
+    return 1;
+}
+
+
 static int launch_client(const WCHAR *game_path, BOOL worker,
         HANDLE stop_event)
 {
@@ -255,19 +296,9 @@ static int launch_client(const WCHAR *game_path, BOOL worker,
     ZeroMemory(&process, sizeof(process));
     ready_marker[0] = L'\0';
 
-    if (worker) {
-        if (!SetEnvironmentVariableW(MULTI_CLIENT_ENV, MULTI_CLIENT_VALUE) ||
-                !SetEnvironmentVariableW(WORKER_MODE_ENV, WORKER_MODE_VALUE)) {
-            log_failure("SetEnvironmentVariableW(worker)", GetLastError());
-            return 20;
-        }
-    } else {
-        SetEnvironmentVariableW(MULTI_CLIENT_ENV, 0);
-        SetEnvironmentVariableW(HIDDEN_DESKTOP_ENV, 0);
-        if (!SetEnvironmentVariableW(WORKER_MODE_ENV, PLAYER_MODE_VALUE)) {
-            log_failure("SetEnvironmentVariableW(player)", GetLastError());
-            return 21;
-        }
+    if (!configure_instance_guard_env(worker)) {
+        log_failure("configure_instance_guard_env", GetLastError());
+        return worker ? 20 : 21;
     }
 
     if (FAILED(StringCchPrintfW(child_command, 2 * MAX_PATH,

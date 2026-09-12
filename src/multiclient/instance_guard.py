@@ -65,34 +65,85 @@ def _multiple_clients_requested(environ):
     return value == '1'
 
 
+def _unique_existing_paths(candidates):
+    seen = set()
+    ordered = []
+    for path in candidates:
+        if not path:
+            continue
+        key = os.path.normcase(os.path.abspath(path))
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(path)
+    return ordered
+
+
 def _native_bridge_path(executable=None, extra_search=None):
-    """Resolve the sidecar path.
+    """Resolve the sidecar path for 2.3.1.2 (exe lives under win64/).
 
     Search order:
       1. VVG_INSTANCE_GUARD_PATH env override
-      2. next to the executable (win64/vvg_instance_guard_native.pyd)
-      3. mods/<version>/ under game root
-      4. optional extra_search paths (tests / launcher drops)
+      2. next to the running executable (win64/vvg_instance_guard_native.pyd)
+      3. <install root>/mods/<version>/  (sibling of win64/)
+      4. cwd and parent of cwd (game often starts with cwd = game root)
+      5. optional extra_search paths (tests / launcher drops)
     """
     override = os.environ.get('VVG_INSTANCE_GUARD_PATH')
     if override:
         return override
 
-    executable = sys.executable if executable is None else executable
-    game_root = os.path.dirname(os.path.abspath(executable))
-    candidates = [
-        os.path.join(game_root, NATIVE_FILENAME),
-        os.path.join(game_root, 'mods', GAME_VERSION_DIR, NATIVE_FILENAME),
-        os.path.join(game_root, 'win64', NATIVE_FILENAME),
-    ]
+    if executable is None:
+        executable = sys.executable
+
+    bases = []
+    if executable:
+        try:
+            exe_dir = os.path.dirname(os.path.abspath(executable))
+            if exe_dir:
+                bases.append(exe_dir)
+                if os.path.basename(exe_dir).lower() == 'win64':
+                    bases.append(os.path.dirname(exe_dir))
+        except (TypeError, ValueError, OSError):
+            pass
+
+    try:
+        cwd = os.path.abspath(os.getcwd())
+        bases.append(cwd)
+        bases.append(os.path.dirname(cwd))
+    except (TypeError, ValueError, OSError):
+        pass
+
+    candidates = []
+    for base in bases:
+        candidates.append(os.path.join(base, NATIVE_FILENAME))
+        candidates.append(
+            os.path.join(base, 'mods', GAME_VERSION_DIR, NATIVE_FILENAME))
+        candidates.append(os.path.join(base, 'win64', NATIVE_FILENAME))
+        # Walk one more level: win64/../mods is already covered; also try
+        # install-root/mods when cwd is deeper.
+        parent = os.path.dirname(base)
+        if parent and parent != base:
+            candidates.append(
+                os.path.join(parent, 'mods', GAME_VERSION_DIR, NATIVE_FILENAME))
+
     if extra_search:
         for base in extra_search:
             candidates.append(os.path.join(base, NATIVE_FILENAME))
-            candidates.append(os.path.join(base, 'vvg_instance_guard_native.dll'))
+            candidates.append(
+                os.path.join(base, 'vvg_instance_guard_native.dll'))
+
+    candidates = _unique_existing_paths(candidates)
     for path in candidates:
         if os.path.isfile(path):
             return path
-    return candidates[0]
+    # Prefer the install-root mods path as the stable default when nothing
+    # exists yet (first deploy).
+    for base in bases:
+        if os.path.basename(base).lower() == 'win64':
+            return os.path.join(
+                os.path.dirname(base), 'mods', GAME_VERSION_DIR, NATIVE_FILENAME)
+    return candidates[0] if candidates else NATIVE_FILENAME
 
 
 class _NativeBridge(object):

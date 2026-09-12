@@ -12,7 +12,8 @@
 | 1 | TASK-005 | 多实例限制专项分析 | 已完成 | docs/analysis/01-offline2312-project-scan.md (第8节), docs/analysis/07-risks-and-open-questions.md | 文档评审 | 3528633 | 2026-09-12 |
 | 1 | TASK-006 | 任务拆解与风险文档 | 已完成 | docs/analysis/06-task-breakdown.md, docs/analysis/07-risks-and-open-questions.md | 文档评审 | 3528633 | 2026-09-12 |
 | 1 | TASK-007 | 流程文档与提交 | 已完成 | docs/agent/*.md | 文件存在检查 | 3528633 | 2026-09-12 |
-| 2 | TASK-M0 | 多实例解除 x64 逆向+实现 | 已完成 | src/multiclient/**, docs/analysis/multiclient-research.md, tests/unit/test_instance_guard.py, tools/*.py | 编译通过 + 13 单测通过 | (本轮回填) | 2026-09-12 |
+| 2 | TASK-M0 | 多实例解除 x64 逆向+实现 | 已完成 | src/multiclient/**, docs/analysis/multiclient-research.md, tests/unit/test_instance_guard.py, tools/*.py | 编译通过 + 13 单测通过 | f59c7ca | 2026-09-12 |
+| 3 | TASK-M0.1 | 游戏 mod 集成 + 部署 + starter 环境 | 已完成 | src/client/**, src/deploy/install_multiclient.py, src/multiclient/**, tests/unit/test_bootstrap_and_deploy.py, docs | 编译 + 22 单测 + 真机目录部署 | (本轮回填) | 2026-09-12 |
 
 ## 状态说明
 

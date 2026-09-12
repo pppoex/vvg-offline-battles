@@ -100,6 +100,23 @@ class NativeBridgePathTests(unittest.TestCase):
             executable=sys.executable, extra_search=[drop])
         self.assertTrue(path.endswith('vvg_instance_guard_native.pyd'))
 
+    def test_workspace_dist_drop_preferred_over_missing_install(self):
+        drop = os.path.join(ROOT, 'dist', 'multiclient')
+        pyd = os.path.join(drop, 'vvg_instance_guard_native.pyd')
+        if not os.path.isfile(pyd):
+            self.skipTest('dist pyd not built')
+        old = os.environ.pop('VVG_INSTANCE_GUARD_PATH', None)
+        try:
+            # Pretend the exe is a random win64 path that has no pyd.
+            fake_exe = os.path.join(ROOT, 'src', 'multiclient', 'native',
+                                    'out', 'missing_parent', 'WorldOfTanks.exe')
+            path = ig._native_bridge_path(
+                executable=fake_exe, extra_search=[drop])
+            self.assertEqual(path, pyd)
+        finally:
+            if old is not None:
+                os.environ['VVG_INSTANCE_GUARD_PATH'] = old
+
 
 class StatusMappingTests(unittest.TestCase):
     def test_operations_cover_key_codes(self):
