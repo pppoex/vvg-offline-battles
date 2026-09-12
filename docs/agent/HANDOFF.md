@@ -15,7 +15,9 @@
 
 ## 最后 commit
 
-(待提交 — 本轮 commit)
+- **hash**: `3528633`
+- **message**: `chore(repo): 初始化工作区与 AGENTS.md [TASK-000]`
+- **文件**: AGENTS.md, .gitignore, docs/analysis/*.md, docs/agent/*.md
 
 ## 已完成
 
