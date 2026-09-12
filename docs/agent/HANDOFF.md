@@ -12,9 +12,10 @@ M0 多实例、M1 SDK、M2 协议、M3 服务器骨架均已完成。
 
 ## 最后 commit
 
-- **hash**: 见本轮 PROGRESS / git log（M3 业务 commit）
-- **message**: `feat(sim_worker): 实现 TCP 服务器骨架与 30Hz tick [TASK-M3]`
-- **已推送**: 见 git status（本轮结束 push origin master:main）
+- **hash**: `49fec39`
+- **message**: `docs(agent): M3 完成交接与里程碑更新 [TASK-M3]`
+- **业务 commit**: `de5dd79` `feat(sim_worker): 实现 TCP 服务器骨架与 30Hz tick [TASK-M3]`
+- **已推送**: `master` → `origin/main`
 
 ## 已完成
 
