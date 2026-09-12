@@ -25,6 +25,6 @@ where = ["src"]
 include = ["sdk*", "protocol*", "sim_worker*", "launcher*", "deploy*", "multiclient*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/unit"]
-pythonpath = ["src", "src/multiclient"]
+testpaths = ["tests/unit", "tests/integration"]
+pythonpath = ["src", "src/multiclient", "."]
 addopts = "-q"
