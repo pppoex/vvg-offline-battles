@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project specific
+*.log
+*.tmp
+*.bak
+*.orig
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Game files (never commit)
+*.exe
+*.dll
+*.pyd
+*.pak
+*.pkg
+*.wgpdc
+
+# Large binaries
+assets/*.bin
+assets/*.dat
+
+# Symlinks (do not commit)
+.py27
+World_of_Tanks_EU_Offline_2.3.1.2
