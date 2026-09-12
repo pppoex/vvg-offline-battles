@@ -13,7 +13,7 @@ M0.1/M0.2 后真机仍弹 already running。日志证明 mod **已加载**，失
 
 ## 最后 commit
 
-- **hash**: （本轮 commit）
+- **hash**: `78a989a`
 - **message**: `fix(multiclient): 游戏内用扩展导入替代 ctypes 释放守卫 [TASK-M0.3]`
 - **文件**: src/multiclient/instance_guard.py, src/multiclient/native/instance_guard.c,
   src/client/vvg_instance_guard/bootstrap.py, tests/unit/, docs/analysis/multiclient-debug-log.md

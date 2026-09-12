@@ -15,7 +15,7 @@
 | 2 | TASK-M0 | 多实例解除 x64 逆向+实现 | 已完成 | src/multiclient/**, docs/analysis/multiclient-research.md, tests/unit/test_instance_guard.py, tools/*.py | 编译通过 + 13 单测通过 | f59c7ca | 2026-09-12 |
 | 3 | TASK-M0.1 | 游戏 mod 集成 + 部署 + starter 环境 | 已完成 | src/client/**, src/deploy/install_multiclient.py, src/multiclient/**, tests/unit/test_bootstrap_and_deploy.py, docs | 编译 + 22 单测 + 真机目录部署 | 3e9e969 | 2026-09-12 |
 | 4 | TASK-M0.2 | res_mods 只加载 .pyc：部署脚本增加 Py2.7 编译 | 已完成 | src/deploy/install_multiclient.py, tests/unit/test_bootstrap_and_deploy.py | Py2.7 23 单测 + 4×.pyc magic=62211 (`03 f3 0d 0a`) | 19b6ff6 | 2026-09-12 |
-| 5 | TASK-M0.3 | 双开 still already running：无 _ctypes → 扩展导入 | 已完成 | src/multiclient/instance_guard.py, src/multiclient/native/instance_guard.c, src/client/vvg_instance_guard/bootstrap.py, tests/unit/, docs/analysis/multiclient-debug-log.md | Py2.7 27 单测 + 扩展导入烟测 + 已部署 | (本轮 commit) | 2026-09-12 |
+| 5 | TASK-M0.3 | 双开 still already running：无 _ctypes → 扩展导入 | 已完成 | src/multiclient/instance_guard.py, src/multiclient/native/instance_guard.c, src/client/vvg_instance_guard/bootstrap.py, tests/unit/, docs/analysis/multiclient-debug-log.md | Py2.7 27 单测 + 扩展导入烟测 + 已部署 | 78a989a | 2026-09-12 |
 
 ## 状态说明
 
