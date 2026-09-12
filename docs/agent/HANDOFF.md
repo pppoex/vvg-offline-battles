@@ -12,7 +12,7 @@ M0 多实例、M1 SDK 骨架、M2 协议层均已完成。
 
 ## 最后 commit
 
-- **hash**: （本轮提交后回填）
+- **hash**: `2ae17fe`
 - **message**: `feat(protocol): 实现 JSON lines 协议层与能力协商 [TASK-M2]`
 - **已推送**: `master` → `origin/main`
 

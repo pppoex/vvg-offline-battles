@@ -559,7 +559,7 @@ M4 (客户端) ⬜ ←────────────────┘
 
 | 分支 | 用途 | 最后 commit |
 |---|---|---|
-| `main` | 主分支，后续开发 | （M2 commit） |
+| `main` | 主分支，后续开发 | `2ae17fe`（TASK-M2） |
 | `base` | 存档，不再改动 | `5636a9b` |
 
 仓库地址：https://github.com/pppoex/vvg-offline-battles
