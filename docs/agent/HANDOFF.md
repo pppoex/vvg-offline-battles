@@ -4,16 +4,16 @@
 
 ## 当前阶段
 
-**M1 完成：项目骨架与 SDK 抽取，单测全绿**
+**M2 完成：协议与序列化，单测全绿**
 
-M0 多实例限制解除（双开验证通过）与 M1 SDK 骨架均已完成。
+M0 多实例、M1 SDK 骨架、M2 协议层均已完成。
 
 远程仓库：https://github.com/pppoex/vvg-offline-battles
 
 ## 最后 commit
 
-- **hash**: `a391fba`
-- **message**: `feat(sdk): 抽取 hooks/log/config 并实现 math 库 [TASK-M1]`
+- **hash**: （本轮提交后回填）
+- **message**: `feat(protocol): 实现 JSON lines 协议层与能力协商 [TASK-M2]`
 - **已推送**: `master` → `origin/main`
 
 ## 已完成
@@ -21,42 +21,52 @@ M0 多实例限制解除（双开验证通过）与 M1 SDK 骨架均已完成。
 1. **TASK-000 ~ TASK-007**: 初始化与第一阶段只读分析
 2. **TASK-M0 ~ M0.F**: 多实例限制解除（双开验证通过，已推 GitHub）
 3. **TASK-M1**: 项目骨架与 SDK 抽取
-   - `pyproject.toml` — setuptools + pytest（pythonpath=src）
-   - `src/sdk/hooks.py` — override/setAttr，修 Decompyle artifact
-   - `src/sdk/log.py` — 文件日志 + guard 装饰器
-   - `src/sdk/config.py` — 去掉 OFFLINE_*；SERVER_HOST/PORT、重连策略等
-   - `src/sdk/math/vector.py` — Vector3（dot/cross/normalise/lerp）
-   - `src/sdk/math/matrix.py` — Matrix 4x4（yaw/pitch/roll、applyPoint/Vector）
-   - `tests/unit/test_sdk_{hooks,log,config,vector,matrix}.py`
-   - 顺带修复：Python 3.14 下 M0 测试不再依赖已移除的 `imp` 模块
-   - 验证：`python -m pytest tests/unit -q` 全绿（1 skip）；SDK 在 D:\Python27 下可编译
+4. **TASK-M2**: 协议与序列化
+   - `src/protocol/__init__.py` — 包入口
+   - `src/protocol/constants.py` — PROTOCOL_VERSION=5、消息类型、限制、端口 28782
+   - `src/protocol/messages.py` — hello/welcome/input/roster/snapshot 等 builder + 校验
+   - `src/protocol/serializer.py` — JSON lines encode/decode + LineDecoder 粘包
+   - `src/protocol/capabilities.py` — 能力名与 negotiate()
+   - `tests/unit/test_protocol.py` / `test_serializer.py`
+   - `docs/design/protocol.md` — 协议文档
+   - 验证：`python -m pytest tests/unit -q` 全绿；`D:\Python27` 下 protocol 可编译
 
 ## 未完成
 
-1. **M2: 协议与序列化**（下一个里程碑）
-2. **M3: sim-worker 权威服务器**
-3. **M4: 薄客户端补丁**
-4. **M5-M9**: 后续里程碑
-5. **WGC cleanup thunk x64 RVA 逆向**（低优先级，句柄枚举方案已可用）
-6. **install_atmosphere_owner_guard**（0.9.22 专属，不阻塞）
+1. **M3: sim-worker 权威服务器**（下一个里程碑）
+2. **M4: 薄客户端补丁**
+3. **M5-M9**: 后续里程碑
+4. **WGC cleanup thunk x64 RVA 逆向**（低优先级，句柄枚举方案已可用）
+5. **install_atmosphere_owner_guard**（0.9.22 专属，不阻塞）
 
 ## 正在处理
 
-- M1 刚完成；等待进入 M2
+- M2 刚完成；等待进入 M3
 
 ## 下一步建议
 
-进入 **M2: 协议与序列化**：
+进入 **M3: sim-worker 权威服务器**：
 
-1. 创建 `src/protocol/`：`constants.py` / `messages.py` / `serializer.py` / `capabilities.py`
-2. 参考 0.9.22 的 JSON lines over TCP，PROTOCOL_VERSION=5
-3. 默认端口与 `sdk/config.py` 的 `SERVER_PORT=28782` 对齐
-4. 单元测试 `tests/unit/test_protocol.py`、`test_serializer.py`
-5. 参考 `docs/analysis/05-migration-and-sdk-plan.md` §5.1 与 M2 里程碑说明
+1. 创建 `src/sim_worker/`：`main.py` / `server.py` / `tick.py` / `room/`
+2. TCP 服务器收 hello → 能力协商 → welcome；广播 roster
+3. 30 Hz tick 循环（`SERVER_TICK_HZ`）；快照 15 Hz
+4. 复用 `src/protocol` 的 serializer / messages
+5. 集成测试 `tests/integration/test_server.py`
+6. 参考 `server/lan_battle_server.py` 架构 + `docs/analysis/05-migration-and-sdk-plan.md` §5.2
 
 ## 关键文件
 
-### M1（本轮）
+### M2（本轮）
+
+- `src/protocol/constants.py`
+- `src/protocol/messages.py`
+- `src/protocol/serializer.py`
+- `src/protocol/capabilities.py`
+- `tests/unit/test_protocol.py`
+- `tests/unit/test_serializer.py`
+- `docs/design/protocol.md`
+
+### M1
 
 - `pyproject.toml`
 - `src/sdk/hooks.py`
@@ -75,9 +85,10 @@ M0 多实例限制解除（双开验证通过）与 M1 SDK 骨架均已完成。
 - `src/client/vvg_instance_guard/bootstrap.py`
 - `src/deploy/install_multiclient.py`
 
-### 分析文档
+### 分析 / 设计文档
 
-- `docs/analysis/05-migration-and-sdk-plan.md` — SDK 抽取计划
+- `docs/design/protocol.md` — M2 协议规范
+- `docs/analysis/05-migration-and-sdk-plan.md` — 迁移计划
 - `docs/analysis/multiclient-research.md` — M0 逆向报告
 - `docs/agent/MILESTONES.md` — 里程碑总览
 
@@ -89,36 +100,38 @@ M0 多实例限制解除（双开验证通过）与 M1 SDK 骨架均已完成。
 
 ## 关键发现
 
-### SDK 抽取
+### 协议（M2）
 
-- Offline 的 `hooks.py` / `log.py` 有 Decompyle++ artifact（`print text`、空 except 体），已在 SDK 中重写
-- `config.py` 882 行里绝大多数是单机战斗参数，**不要整文件复制**；联机只需要网络/会话默认值 + JSON override 机制
-- BigWorld `Math.Vector3` / `Math.Matrix` 用法：构造支持序列拷贝；`.translation`、`.yaw/.pitch/.roll`、`applyPoint`/`applyVector`
-- 欧拉角：`setYawPitchRoll` 实现 R = Ry·Rx·Rz；pitch 向上抬为负
+- 参考项目 v5：JSON lines、紧凑分隔符、hello 必须为首条消息
+- ping/pong 携带 `seq` + `client_time` / `server_time`
+- 能力列表：list[str]，≤32 项，必选 `core_session_v1`
+- 服务器错误：`{"type":"error","code":...,"message":...}`
+- 状态屏障与 snapshot 分离，避免快照冲掉 roster/welcome
+
+### SDK（M1，仍有效）
+
+- Offline hooks/log 有 Decompyle artifact，SDK 已重写
+- config 不复制 Offline 882 行单机参数
+- 欧拉角 R = Ry·Rx·Rz；pitch 向上抬为负
 
 ### 运行时
 
-- 宿主 Python 3.14：`imp` 模块已移除，测试 helper 改用 `importlib.util`
-- 游戏内嵌 Python 2.7：无 `_ctypes`，native 必须 `imp.load_dynamic`（M0 结论不变）
-- SDK 须保持 2/3 兼容：禁 f-string、禁类型注解（运行时）
-
-### M0 遗留结论（仍有效）
-
-- 主互斥体：`WOT_STARTUP_MUTEX`
-- 客户端只加载 `.pyc`，magic=62211
-- 日志：`vvg-*-python.log`
+- 宿主 Python 3.14；游戏内嵌 Python 2.7 无 `_ctypes`
+- SDK / protocol 须 2/3 兼容
+- 主互斥体：`WOT_STARTUP_MUTEX`；.pyc magic=62211
 
 ## 风险
 
-1. 协议设计若与 0.9.22 差异过大，M3/M4 适配成本高 — M2 时优先复用消息语义
-2. sim-worker 迁移 Offline 大文件（drive/shooting 等）时仍需去 BigWorld 依赖
-3. 宿主无法加载 Py2.7 pyd 作扩展 — 真机游戏内验证仍以游戏日志为准
+1. snapshot.payload / events schema 在 M3 收紧时若破坏 envelope，M4 适配成本高 — 尽量只增字段
+2. sim-worker 迁移 Offline 大文件时仍需去 BigWorld 依赖
+3. 宿主无法加载 Py2.7 pyd 作扩展 — 真机验证以游戏日志为准
 
 ## 待用户确认
 
 1. ~~M0 真机双开~~ — 已通过
 2. ~~继续 M1~~ — 已完成
-3. 是否继续 **M2（协议与序列化）**
+3. ~~继续 M2~~ — 已完成
+4. 是否继续 **M3（sim-worker 权威服务器）**
 
 ## 禁止事项提醒
 

@@ -10,7 +10,7 @@
 ```
 M0 ████████████████████████████████ 100%  ✅ 已完成
 M1 ████████████████████████████████ 100%  ✅ 已完成
-M2 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
+M2 ████████████████████████████████ 100%  ✅ 已完成
 M3 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M4 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M5 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
@@ -19,7 +19,7 @@ M7 ░░░░░░░░░░░░░░░░░░░░░░░░░�
 M8 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M9 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 
-整体进度: 20% (2/10 里程碑)
+整体进度: 30% (3/10 里程碑)
 ```
 
 ---
@@ -133,10 +133,10 @@ SDK 是后续所有模块的基础：
 
 ---
 
-## M2: 协议与序列化 ⬜
+## M2: 协议与序列化 ✅
 
-**状态**: 未开始  
-**预计时间**: 2-3 天  
+**状态**: 已完成  
+**完成时间**: 2026-09-12  
 **依赖**: M1
 
 ### 目标
@@ -145,12 +145,16 @@ SDK 是后续所有模块的基础：
 
 ### 交付物
 
-1. `src/protocol/` — 协议模块
-   - `messages.py` — 消息类型定义
-   - `serializer.py` — JSON 序列化/反序列化
-   - `capabilities.py` — 能力协商
-   - `constants.py` — 协议常量
-2. `docs/design/protocol.md` — 协议文档
+| 文件 | 说明 |
+|---|---|
+| `src/protocol/__init__.py` | 包入口（2/3 兼容） |
+| `src/protocol/constants.py` | PROTOCOL_VERSION=5、消息类型、限制、端口 28782 |
+| `src/protocol/messages.py` | hello/welcome/input 等 builder + 校验 |
+| `src/protocol/serializer.py` | JSON lines + LineDecoder |
+| `src/protocol/capabilities.py` | 能力名与 negotiate() |
+| `tests/unit/test_protocol.py` | 消息与协商单测 |
+| `tests/unit/test_serializer.py` | 序列化专项单测 |
+| `docs/design/protocol.md` | 协议文档 |
 
 ### 验收标准
 
@@ -158,6 +162,8 @@ SDK 是后续所有模块的基础：
 - ✅ 序列化/反序列化正确
 - ✅ 能力协商可用
 - ✅ 单元测试通过
+- ✅ 与 sdk.config 端口/版本对齐
+- ✅ Python 2.7 可编译
 
 ### 测试方式
 
@@ -165,14 +171,20 @@ SDK 是后续所有模块的基础：
 pytest tests/unit/test_protocol.py tests/unit/test_serializer.py
 ```
 
+### 关键决策
+
+1. 对齐 0.9.22 v5：JSON lines、hello 首条、ping/pong、状态屏障
+2. 必选能力 `core_session_v1`；movement/fire/reconnect 预留名
+3. 单条消息 256 KiB；紧凑 JSON + ensure_ascii
+4. protocol 包 2/3 双兼容（客户端与服务器共用）
+
 ### 风险
 
-- 消息格式设计不当
-- 性能问题（JSON 序列化）
+- snapshot.payload schema 在 M6 前保持宽松，避免过早锁死
 
 ### 未来方向
 
-参考 0.9.22 的 v5 协议设计，适配 2.3.1.2 的数据格式。
+M3 sim-worker 使用本协议完成握手与 roster；M4 客户端复用 LineDecoder。
 
 ---
 
@@ -483,7 +495,7 @@ pytest tests/
 ```
 M0 (多实例) ✅ ─────────────────────────────────┐
                                                 │
-M1 (SDK) ⬜ ──→ M2 (协议) ⬜ ──→ M3 (服务器) ⬜ ──→ M6 (基础同步) ⬜ ──→ M7 (战斗同步) ⬜ ──→ M8 (重连) ⬜ ──→ M9 (收尾) ⬜
+M1 (SDK) ✅ ──→ M2 (协议) ✅ ──→ M3 (服务器) ⬜ ──→ M6 (基础同步) ⬜ ──→ M7 (战斗同步) ⬜ ──→ M8 (重连) ⬜ ──→ M9 (收尾) ⬜
                 │              │                    │
                 └──────────────┼────────────────────┘
                                │
@@ -547,7 +559,7 @@ M4 (客户端) ⬜ ←────────────────┘
 
 | 分支 | 用途 | 最后 commit |
 |---|---|---|
-| `main` | 主分支，后续开发 | `a391fba`（TASK-M1） |
+| `main` | 主分支，后续开发 | （M2 commit） |
 | `base` | 存档，不再改动 | `5636a9b` |
 
 仓库地址：https://github.com/pppoex/vvg-offline-battles

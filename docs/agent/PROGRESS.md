@@ -18,6 +18,7 @@
 | 5 | TASK-M0.3 | 无 _ctypes → 扩展导入修复 | 已完成 | src/multiclient/instance_guard.py, native/instance_guard.c | 27 单测 + 真机双开通过 | 78a989a | 2026-09-12 |
 | 6 | TASK-M0.F | M0 完成：双开验证通过，推送到 GitHub | 已完成 | docs/agent/*.md | 用户确认双开正常 | 7c81824 | 2026-09-12 |
 | 7 | TASK-M1 | 项目骨架与 SDK 抽取 | 已完成 | pyproject.toml, src/sdk/**, tests/unit/test_sdk_*.py | pytest 全绿 + Py2.7 编译 | a391fba | 2026-09-12 |
+| 8 | TASK-M2 | 协议与序列化 | 已完成 | src/protocol/**, tests/unit/test_protocol.py, test_serializer.py, docs/design/protocol.md | pytest 全绿 + Py2.7 编译 | （见本轮 commit） | 2026-09-12 |
 
 ## 状态说明
 
@@ -32,8 +33,8 @@
 |---|---|---|
 | M0: 多实例限制解除 | ✅ **已完成** | 双开验证通过 |
 | M1: 项目骨架与 SDK | ✅ **已完成** | SDK 抽取 + 数学库 + 单测框架 |
-| M2: 协议与序列化 | ⬜ 未开始 | 下一个任务 |
-| M3: sim-worker 服务器 | ⬜ 未开始 | — |
+| M2: 协议与序列化 | ✅ **已完成** | protocol 包 + 能力协商 + 单测 + 文档 |
+| M3: sim-worker 服务器 | ⬜ 未开始 | 下一个任务 |
 | M4: 薄客户端补丁 | ⬜ 未开始 | — |
 | M5: 启动器与部署 | ⬜ 未开始 | — |
 | M6: 基础同步 | ⬜ 未开始 | — |

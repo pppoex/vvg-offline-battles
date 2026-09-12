@@ -275,3 +275,23 @@
   - 客户端只能用标准库
   - Offline 大量使用 `Math.Vector3` / `Math.Matrix`
 - **状态**：已执行（M1）
+
+## 决策：协议层复用 0.9.22 v5 消息语义，包路径为 src/protocol
+
+- **背景**：M2 需要定义客户端-服务器-worker 消息协议；若与参考项目差异过大，M3/M4 适配成本高
+- **选项**：
+  1. 对齐 0.9.22 JSON lines v5 语义（hello/welcome/input/ping、能力协商）
+  2. 从零设计全新二进制协议
+  3. 引入 MessagePack / gRPC
+- **结论**：选项 1
+- **影响**：
+  - `PROTOCOL_VERSION = 5`，端口 28782 与 sdk.config 对齐
+  - 消息 envelope：`{"type": "...", "protocol": 5, ...}`
+  - 能力必选项 `core_session_v1`；movement/fire/reconnect 用预留能力名扩展
+  - `src/protocol/**` 2/3 双兼容，禁止 f-string / dataclass
+  - 单条消息上限 256 KiB；LineDecoder 处理粘包
+- **证据**：
+  - 参考项目 `lan_client.py` / `lan_battle_server.py` PROTOCOL_VERSION=5
+  - DECISIONS：协议采用 JSON lines over TCP
+  - 分析计划 `05-migration-and-sdk-plan.md` §4.1 / §5.1
+- **状态**：已执行（M2）
