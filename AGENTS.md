@@ -19,15 +19,22 @@
 
 ## 2. 当前阶段
 
-第一阶段：只读扫描、分析、方案设计。
+**编码阶段：M0 已完成，下一个里程碑 M1**
 
-用户明确确认前：
+已完成：
+- 第一阶段只读分析（7 篇文档）
+- M0 多实例限制解除（双开验证通过）
 
-- 不写业务代码。
-- 不修改游戏客户端。
-- 不修改参考项目。
-- 不修改单机 mod 源项目。
-- 只允许在工作区写文档、流程文件、AGENTS.md。
+当前状态：
+- 可以写业务代码
+- 按里程碑推进（M1-M9）
+- 每个里程碑完成后运行测试、更新文档、提交 commit
+
+禁止：
+- 不修改游戏客户端本体（exe/dll/pkg）
+- 不修改参考项目
+- 不修改单机 mod 源项目
+- 部署只能通过工作区项目内脚本完成
 
 ## 3. 关键路径
 
@@ -58,20 +65,22 @@
 1. 读 `AGENTS.md`。
 2. 读 `docs/agent/HANDOFF.md`。
 3. 读 `docs/agent/PROGRESS.md`。
-4. 读 `docs/agent/OPEN_QUESTIONS.md`。
-5. 执行 `git status --short`。
+4. 读 `docs/agent/MILESTONES.md`（里程碑进度）。
+5. 读 `docs/agent/OPEN_QUESTIONS.md`。
+6. 执行 `git status --short`。
 
 ### 每轮结束
 
 1. 更新 `docs/agent/PROGRESS.md`。
 2. 更新 `docs/agent/HANDOFF.md`。
-3. 必要时更新 `docs/agent/DECISIONS.md`。
-4. 必要时更新 `docs/agent/OPEN_QUESTIONS.md`。
-5. 运行测试或验证命令；不能运行则写原因。
-6. `git status --short`。
-7. `git add` 本轮相关文件。
-8. `git commit`。
-9. 回复中报告 commit hash、message、文件、交接路径。
+3. 更新 `docs/agent/MILESTONES.md`（如涉及里程碑）。
+4. 必要时更新 `docs/agent/DECISIONS.md`。
+5. 必要时更新 `docs/agent/OPEN_QUESTIONS.md`。
+6. 运行测试或验证命令；不能运行则写原因。
+7. `git status --short`。
+8. `git add` 本轮相关文件。
+9. `git commit`。
+10. 回复中报告 commit hash、message、文件、交接路径。
 
 ## 6. Commit 规范
 
@@ -94,9 +103,10 @@ docs(agent): 更新阶段一交接记录 [TASK-001]
 1. `AGENTS.md`
 2. `docs/agent/HANDOFF.md`
 3. `docs/agent/PROGRESS.md`
-4. `docs/agent/OPEN_QUESTIONS.md`
-5. `docs/agent/DECISIONS.md`
-6. `docs/analysis/*.md`
+4. `docs/agent/MILESTONES.md`
+5. `docs/agent/OPEN_QUESTIONS.md`
+6. `docs/agent/DECISIONS.md`
+7. `docs/analysis/*.md`
 
 ## 8. 目录约定
 

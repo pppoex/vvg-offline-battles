@@ -156,7 +156,7 @@
 ## 决策：多实例守卫通过 res_mods 游戏 mod 在进程内释放
 
 - **背景**：M0 只交付了 native pyd + Python 接口，游戏内无人调用
-  `release_if_requested()`，双开仍弹 “already running”
+  `release_if_requested()`，双开仍弹 "already running"
 - **选项**：
   1. 仅依赖 starter 环境变量（无效——不会被游戏执行）
   2. DLL 注入到更早的 C++ 阶段
@@ -169,4 +169,61 @@
 - **证据**：
   - 参考 `offline_lan_0922/bootstrap.py` init() 调用 release_if_requested
   - 用户复现：`vvg_worker_starter.exe --player` 第二实例弹对话框
-- **状态**：已部署到游戏目录附属文件
+- **状态**：已验证通过
+
+## 决策：游戏 mod 必须编译为 .pyc
+
+- **背景**：部署 .py 到 res_mods 后游戏不加载 mod
+- **选项**：
+  1. 编译为 .pyc（必须）
+  2. 同时部署 .py 和 .pyc
+- **结论**：同时部署 .py（保留源码）和 .pyc（游戏实际加载）
+- **影响**：
+  - 部署脚本必须用 Python 2.7 的 `py_compile`
+  - 必须校验 magic number = 62211 (`03 f3 0d 0a`)
+  - 不可用 Python 3 编译（magic 不兼容）
+- **证据**：
+  - 用户反馈：游戏不直接读取 .py
+  - Offline2.3.1.2 反编译头：`Python bytecode version base 2.7 (62211)`
+- **状态**：已验证通过
+
+## 决策：游戏内 native pyd 用 imp.load_dynamic 导入
+
+- **背景**：`ctypes.CDLL` 在游戏内嵌 Python 中失败，报 `No module named _ctypes`
+- **选项**：
+  1. `imp.load_dynamic` 作为 C 扩展导入（推荐）
+  2. 修复 ctypes 依赖（不可行——游戏不提供 _ctypes）
+  3. 完全不用 Python，改为 DLL 注入
+- **结论**：选项 1
+- **影响**：
+  - native pyd 必须导出 `initvvg_instance_guard_native` 函数
+  - Python 侧优先 `imp.load_dynamic`，ctypes 仅作宿主回退
+  - 单元测试需区分系统 Python 与游戏内嵌环境差异
+- **证据**：
+  - 游戏日志：`release failed: No module named _ctypes`
+  - 参考项目 `instance_guard.py` 也使用 `imp.load_dynamic`
+- **状态**：已验证通过
+
+## 决策：主互斥体是 WOT_STARTUP_MUTEX
+
+- **背景**：需要确定 2.3.1.2 的单实例互斥体名
+- **选项**：
+  1. 假设与 0.9.22 相同（`wot_client_mutex`）— 错误
+  2. 逆向分析确定实际名称
+- **结论**：选项 2，确认主闸门是 `WOT_STARTUP_MUTEX`
+- **影响**：
+  - native 守卫的白名单必须包含 `WOT_STARTUP_MUTEX`
+  - WGC AppMutex（`wgc_game_mtx_` 等）作为补充
+- **证据**：
+  - PE 字符串扫描：UTF-16 `WOT_STARTUP_MUTEX` 紧邻 `app.cpp`
+  - 参考项目是 `wot_client_mutex`（0.9.22 专属）
+- **状态**：已验证通过
+
+## 决策：进入编码阶段
+
+- **背景**：第一阶段分析完成，用户确认 M0 方向后进入编码
+- **结论**：M0（多实例）优先，已完成并验证
+- **影响**：
+  - 后续按 M1-M9 里程碑推进
+  - 每个里程碑完成后运行测试、更新文档、提交 commit
+- **状态**：已进入

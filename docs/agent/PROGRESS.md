@@ -8,14 +8,15 @@
 | 1 | TASK-001 | Offline2.3.1.2 只读扫描与分析 | 已完成 | docs/analysis/01-offline2312-project-scan.md | 文档评审 | 3528633 | 2026-09-12 |
 | 1 | TASK-002 | wot-offline-battles 参考项目扫描 | 已完成 | docs/analysis/02-reference-wot-offline-battles-scan.md | 文档评审 | 3528633 | 2026-09-12 |
 | 1 | TASK-003 | 版本差异分析 0.9.22 vs 2.3.1.2 | 已完成 | docs/analysis/03-version-diff-0.9.22-vs-2.3.1.2.md | 文档评审 | 3528633 | 2026-09-12 |
-| 1 | TASK-004 | 目标架构设计与迁移计划 | 已完成 | docs/analysis/04-target-architecture.md, docs/analysis/05-migration-and-sdk-plan.md | 文档评审 | 3528633 | 2026-09-12 |
-| 1 | TASK-005 | 多实例限制专项分析 | 已完成 | docs/analysis/01-offline2312-project-scan.md (第8节), docs/analysis/07-risks-and-open-questions.md | 文档评审 | 3528633 | 2026-09-12 |
-| 1 | TASK-006 | 任务拆解与风险文档 | 已完成 | docs/analysis/06-task-breakdown.md, docs/analysis/07-risks-and-open-questions.md | 文档评审 | 3528633 | 2026-09-12 |
+| 1 | TASK-004 | 目标架构设计与迁移计划 | 已完成 | docs/analysis/04-target-architecture.md, 05-migration-and-sdk-plan.md | 文档评审 | 3528633 | 2026-09-12 |
+| 1 | TASK-005 | 多实例限制专项分析 | 已完成 | docs/analysis/01, 07 | 文档评审 | 3528633 | 2026-09-12 |
+| 1 | TASK-006 | 任务拆解与风险文档 | 已完成 | docs/analysis/06, 07 | 文档评审 | 3528633 | 2026-09-12 |
 | 1 | TASK-007 | 流程文档与提交 | 已完成 | docs/agent/*.md | 文件存在检查 | 3528633 | 2026-09-12 |
-| 2 | TASK-M0 | 多实例解除 x64 逆向+实现 | 已完成 | src/multiclient/**, docs/analysis/multiclient-research.md, tests/unit/test_instance_guard.py, tools/*.py | 编译通过 + 13 单测通过 | f59c7ca | 2026-09-12 |
-| 3 | TASK-M0.1 | 游戏 mod 集成 + 部署 + starter 环境 | 已完成 | src/client/**, src/deploy/install_multiclient.py, src/multiclient/**, tests/unit/test_bootstrap_and_deploy.py, docs | 编译 + 22 单测 + 真机目录部署 | 3e9e969 | 2026-09-12 |
-| 4 | TASK-M0.2 | res_mods 只加载 .pyc：部署脚本增加 Py2.7 编译 | 已完成 | src/deploy/install_multiclient.py, tests/unit/test_bootstrap_and_deploy.py | Py2.7 23 单测 + 4×.pyc magic=62211 (`03 f3 0d 0a`) | 19b6ff6 | 2026-09-12 |
-| 5 | TASK-M0.3 | 双开 still already running：无 _ctypes → 扩展导入 | 已完成 | src/multiclient/instance_guard.py, src/multiclient/native/instance_guard.c, src/client/vvg_instance_guard/bootstrap.py, tests/unit/, docs/analysis/multiclient-debug-log.md | Py2.7 27 单测 + 扩展导入烟测 + 已部署 | 78a989a | 2026-09-12 |
+| 2 | TASK-M0 | 多实例解除 x64 逆向+实现 | 已完成 | src/multiclient/**, docs/analysis/multiclient-research.md | 编译 + 13 单测 | f59c7ca | 2026-09-12 |
+| 3 | TASK-M0.1 | 游戏 mod 集成 + 部署 + starter | 已完成 | src/client/**, src/deploy/install_multiclient.py | 编译 + 22 单测 + 部署 | 3e9e969 | 2026-09-12 |
+| 4 | TASK-M0.2 | res_mods 只加载 .pyc：Py2.7 编译 | 已完成 | src/deploy/install_multiclient.py | 23 单测 + magic=62211 | 19b6ff6 | 2026-09-12 |
+| 5 | TASK-M0.3 | 无 _ctypes → 扩展导入修复 | 已完成 | src/multiclient/instance_guard.py, native/instance_guard.c | 27 单测 + 真机双开通过 | 78a989a | 2026-09-12 |
+| 6 | TASK-M0.F | M0 完成：双开验证通过，推送到 GitHub | 已完成 | docs/agent/*.md | 用户确认双开正常 | 7c81824 | 2026-09-12 |
 
 ## 状态说明
 
@@ -23,3 +24,18 @@
 - **已完成**：任务已完成并通过验证
 - **阻塞**：任务被阻塞，等待解决
 - **待确认**：任务等待用户确认
+
+## 里程碑状态
+
+| 里程碑 | 状态 | 说明 |
+|---|---|---|
+| M0: 多实例限制解除 | ✅ **已完成** | 双开验证通过 |
+| M1: 项目骨架与 SDK | ⬜ 未开始 | 下一个任务 |
+| M2: 协议与序列化 | ⬜ 未开始 | — |
+| M3: sim-worker 服务器 | ⬜ 未开始 | — |
+| M4: 薄客户端补丁 | ⬜ 未开始 | — |
+| M5: 启动器与部署 | ⬜ 未开始 | — |
+| M6: 基础同步 | ⬜ 未开始 | — |
+| M7: 战斗同步 | ⬜ 未开始 | — |
+| M8: 断线重连 | ⬜ 未开始 | — |
+| M9: 测试与文档 | ⬜ 未开始 | — |
