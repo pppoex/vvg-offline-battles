@@ -12,8 +12,8 @@ M0 多实例、M1 SDK、M2 协议、M3 服务器骨架均已完成。
 
 ## 最后 commit
 
-- **hash**: `49fec39`
-- **message**: `docs(agent): M3 完成交接与里程碑更新 [TASK-M3]`
+- **hash**: `a7aeabf`
+- **message**: `docs(agent): M3 收尾回填 commit hash [TASK-M3]`
 - **业务 commit**: `de5dd79` `feat(sim_worker): 实现 TCP 服务器骨架与 30Hz tick [TASK-M3]`
 - **已推送**: `master` → `origin/main`
 
