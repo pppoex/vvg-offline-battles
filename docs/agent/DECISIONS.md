@@ -227,3 +227,51 @@
   - 后续按 M1-M9 里程碑推进
   - 每个里程碑完成后运行测试、更新文档、提交 commit
 - **状态**：已进入
+
+## 决策：SDK 模块保持 Python 2/3 双兼容
+
+- **背景**：客户端运行 Python 2.7，服务器/测试运行 Python 3；SDK 会被两端共用
+- **选项**：
+  1. SDK 双兼容（2/3）
+  2. SDK 只写 Py2，服务器另写一份
+  3. SDK 只写 Py3，客户端 mod 不用 SDK
+- **结论**：选项 1
+- **影响**：
+  - 禁止 f-string、运行时类型注解、dataclass、pathlib
+  - 使用 `from __future__ import absolute_import, division, print_function`
+  - `class Foo(object)` 风格；`__div__` + `__truediv__` 双定义
+- **证据**：
+  - `DECISIONS`：客户端 Python 2.7、服务器 Python 3
+  - Offline2.3.1.2 与参考项目均为游戏内 Py2.7
+- **状态**：已执行（M1）
+
+## 决策：config 不复制 Offline 单机假服务器配置
+
+- **背景**：Offline `config.py` 约 882 行，绝大多数是单机战斗/Bot/结果参数
+- **选项**：
+  1. 整文件复制后删改
+  2. 只保留 JSON override 机制 + 联机网络默认值（重写精简版）
+- **结论**：选项 2
+- **影响**：
+  - 移除 `OFFLINE_URL` / `OFFLINE_NAME` / 大量 BATTLE_* 单机开关
+  - 新增 `SERVER_HOST/PORT`、`CLIENT_MODE`、重连策略、tick 率
+  - 后续 sim-worker 需要的战斗参数在 M3 按需迁入，不进 SDK config
+- **证据**：
+  - `05-migration-and-sdk-plan.md` §2.2 要求移除单机特定配置
+  - 用户使命：不保留单机模式
+- **状态**：已执行（M1）
+
+## 决策：数学库自实现而非引入 numpy（客户端路径）
+
+- **背景**：sim-worker 与客户端预测都需要 Vector3/Matrix
+- **选项**：
+  1. 纯 Python 自实现对齐 BigWorld API
+  2. 服务器用 numpy，客户端另写
+- **结论**：先选项 1（M1）；若 M3 服务器性能不足再对 sim-worker 内部换 numpy，对外接口不变
+- **影响**：
+  - 客户端 2.7 无第三方依赖
+  - 接口：`translation`、`yaw/pitch/roll`、`applyPoint`/`applyVector`
+- **证据**：
+  - 客户端只能用标准库
+  - Offline 大量使用 `Math.Vector3` / `Math.Matrix`
+- **状态**：已执行（M1）

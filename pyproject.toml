@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vvg-offline-battles"
+version = "0.1.0"
+description = "World of Tanks 2.3.1.2 server-authoritative LAN battles (thin clients + sim-worker)"
+readme = "docs/agent/HANDOFF.md"
+requires-python = ">=3.8"
+license = { text = "Proprietary" }
+authors = [{ name = "vvg-offline-battles" }]
+
+# 服务器 / 启动器 / 测试：Python 3
+# 客户端 mod（src/sdk 可复用部分）：Python 2.7，仅标准库，保持 2/3 兼容
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["sdk*", "protocol*", "sim_worker*", "launcher*", "deploy*", "multiclient*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+pythonpath = ["src", "src/multiclient"]
+addopts = "-q"

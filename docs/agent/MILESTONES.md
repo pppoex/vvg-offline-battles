@@ -9,7 +9,7 @@
 
 ```
 M0 ████████████████████████████████ 100%  ✅ 已完成
-M1 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
+M1 ████████████████████████████████ 100%  ✅ 已完成
 M2 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M3 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M4 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
@@ -19,7 +19,7 @@ M7 ░░░░░░░░░░░░░░░░░░░░░░░░░�
 M8 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M9 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 
-整体进度: 10% (1/10 里程碑)
+整体进度: 20% (2/10 里程碑)
 ```
 
 ---
@@ -75,11 +75,11 @@ cd "D:\WOT\World_of_Tanks_EU_Offline_2.3.1.2\win64"
 
 ---
 
-## M1: 项目骨架与 SDK 抽取 ⬜
+## M1: 项目骨架与 SDK 抽取 ✅
 
-**状态**: 未开始  
-**预计时间**: 2-3 天  
-**依赖**: 无
+**状态**: 已完成  
+**完成时间**: 2026-09-12  
+**Commits**: 见 PROGRESS.md TASK-M1
 
 ### 目标
 
@@ -87,14 +87,16 @@ cd "D:\WOT\World_of_Tanks_EU_Offline_2.3.1.2\win64"
 
 ### 交付物
 
-1. `pyproject.toml` — 项目配置
-2. `src/sdk/` — SDK 基础模块
-   - `hooks.py` — Hook 系统（从 Offline2.3.1.2 抽取）
-   - `log.py` — 日志系统
-   - `config.py` — 配置管理
-   - `math/vector.py` — 向量运算
-   - `math/matrix.py` — 矩阵运算
-3. `tests/unit/` — 单元测试框架
+| 文件 | 说明 |
+|---|---|
+| `pyproject.toml` | 项目配置 + pytest pythonpath |
+| `src/sdk/__init__.py` | SDK 包入口（2/3 兼容） |
+| `src/sdk/hooks.py` | Hook 系统（抽取 + 修 Decompyle artifact） |
+| `src/sdk/log.py` | 日志系统（抽取 + 修 artifact） |
+| `src/sdk/config.py` | 配置（去掉 OFFLINE_*，联机默认值） |
+| `src/sdk/math/vector.py` | Vector3（替代 BigWorld Math.Vector3） |
+| `src/sdk/math/matrix.py` | Matrix 4x4（替代 BigWorld Math.Matrix） |
+| `tests/unit/test_sdk_*.py` | SDK 单元测试 |
 
 ### 验收标准
 
@@ -102,24 +104,32 @@ cd "D:\WOT\World_of_Tanks_EU_Offline_2.3.1.2\win64"
 - ✅ SDK 基础模块可用
 - ✅ 单元测试框架运行
 - ✅ `pytest tests/unit/` 通过
+- ✅ SDK 全部文件 Python 2.7 可编译
 
 ### 测试方式
 
 ```bash
-pytest tests/unit/
+python -m pytest tests/unit/
 ```
+
+### 关键决策
+
+1. SDK 必须 **Python 2/3 双兼容**（客户端 2.7，服务器/测试 3.x）
+2. `config.py` 不再携带 Offline 单机假服务器配置；只保留网络/会话默认值
+3. 数学库对齐 BigWorld 用法：`translation`、`yaw/pitch/roll`、`applyPoint/applyVector`
+4. 欧拉角约定：R = Ry·Rx·Rz；yaw 绕 Y，pitch 向上抬为负，roll 绕 Z
 
 ### 风险
 
-- Offline2.3.1.2 代码质量（Decompile++ artifact）
-- Python 2.7 → 3 兼容性
+- Offline2.3.1.2 代码质量（Decompile++ artifact）— 已在抽取时清理
+- 宿主 Python 3.14 无法 `imp.load_dynamic` 加载 Py2.7 pyd — M0 测试已改为可跳过
 
 ### 未来方向
 
-SDK 是后续所有模块的基础，需要确保：
-- 接口清晰
-- 测试覆盖
-- 无 BigWorld 依赖（版本无关部分）
+SDK 是后续所有模块的基础：
+- M2 协议层依赖 `config` 默认端口 / PROTOCOL_VERSION
+- M3 sim-worker 使用 `sdk.math` 做权威模拟
+- M4 客户端预测使用同一套 Vector3/Matrix
 
 ---
 

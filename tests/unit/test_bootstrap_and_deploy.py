@@ -19,25 +19,30 @@ if MULTICLIENT not in sys.path:
 import instance_guard as ig  # noqa: E402
 
 
+def _load_source(name, path):
+    """Load a Python source file under `name` (Py3.12+ has no `imp`)."""
+    try:
+        import importlib.util
+    except ImportError:
+        import imp
+        return imp.load_source(name, path)
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def _load_bootstrap():
     """Load src/client/vvg_instance_guard/bootstrap.py with package alias."""
-    import imp
-
     # Make `from vvg_instance_guard import instance_guard` work.
     if 'vvg_instance_guard' not in sys.modules:
         pkg = types.ModuleType('vvg_instance_guard')
         pkg.instance_guard = ig
         sys.modules['vvg_instance_guard'] = pkg
 
-    # Also register the real package dir so relative files resolve.
-    pkg_dir = os.path.join(CLIENT, 'vvg_instance_guard')
-    if pkg_dir not in getattr(sys, 'path', []):
-        # Prefer loading bootstrap by absolute path; no need for path entry
-        # when the package module is already in sys.modules.
-        pass
-
-    path = os.path.join(pkg_dir, 'bootstrap.py')
-    return imp.load_source('vvg_bootstrap_under_test', path)
+    path = os.path.join(CLIENT, 'vvg_instance_guard', 'bootstrap.py')
+    return _load_source('vvg_bootstrap_under_test', path)
 
 
 class NativeBridgePathWin64Tests(unittest.TestCase):
@@ -157,10 +162,9 @@ class ModEntryTests(unittest.TestCase):
 
 class DeployScriptTests(unittest.TestCase):
     def _load_deploy(self, name):
-        import imp
         path = os.path.join(ROOT, 'src', 'deploy', 'install_multiclient.py')
         self.assertTrue(os.path.isfile(path))
-        return imp.load_source(name, path)
+        return _load_source(name, path)
 
     def test_deploy_module_loads(self):
         deploy = self._load_deploy('install_multiclient_under_test')
