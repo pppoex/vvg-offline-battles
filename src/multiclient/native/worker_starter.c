@@ -8,9 +8,13 @@
  *  - Optional ready marker so the launcher can synchronize
  *
  * Modes:
- *   (default)  / --worker-only : start one client as hidden worker
- *   --player                 : start one visible player client
- *   --stop-starter <pid>     : signal a running starter to stop
+ *   (default) / --worker-only : worker client (hidden desktop unless --show)
+ *   --worker-only --show      : worker client, visible window (debug)
+ *   --player                  : visible player client
+ *  --stop-starter <pid>      : signal a running starter to stop
+ *
+ * Flags may combine with --worker-only, e.g.:
+ *   vvg_worker_starter.exe --worker-only --show
  */
 
 #define WIN32_LEAN_AND_MEAN
@@ -36,6 +40,12 @@
 #define STOP_TIMEOUT_MS 8000
 
 static WCHAR g_root[MAX_PATH];
+
+/* Launch options filled by parse_launch_args(). */
+typedef struct StarterOptions {
+    BOOL worker;
+    BOOL show_window; /* worker + show => stay on WinSta0 desktop */
+} StarterOptions;
 
 
 static void log_failure(const char *stage, DWORD error_code)
@@ -184,6 +194,87 @@ static HANDLE create_starter_stop_event(void)
 }
 
 
+static int token_equals(const WCHAR *cursor, const WCHAR *token,
+        size_t *token_length)
+{
+    size_t length = lstrlenW(token);
+    size_t index;
+
+    for (index = 0; index < length; ++index) {
+        WCHAR left = cursor[index];
+        WCHAR right = token[index];
+        if (left >= L'A' && left <= L'Z') {
+            left = (WCHAR)(left - L'A' + L'a');
+        }
+        if (right >= L'A' && right <= L'Z') {
+            right = (WCHAR)(right - L'A' + L'a');
+        }
+        if (left != right) {
+            return 0;
+        }
+    }
+    *token_length = length;
+    return 1;
+}
+
+
+/* Returns 1 on success, 0 on unsupported argument. */
+static int parse_launch_args(const WCHAR *command_line, StarterOptions *options)
+{
+    const WCHAR *cursor;
+    int saw_mode = 0;
+
+    options->worker = TRUE;
+    options->show_window = FALSE;
+
+    if (command_line == 0 || command_line[0] == L'\0') {
+        return 1;
+    }
+
+    cursor = command_line;
+    while (*cursor != L'\0') {
+        size_t token_length = 0;
+
+        while (*cursor == L' ' || *cursor == L'\t') {
+            ++cursor;
+        }
+        if (*cursor == L'\0') {
+            break;
+        }
+        if (token_equals(cursor, L"--player", &token_length)) {
+            options->worker = FALSE;
+            options->show_window = TRUE;
+            saw_mode = 1;
+        } else if (token_equals(cursor, L"--worker-only", &token_length) ||
+                token_equals(cursor, L"--worker", &token_length)) {
+            options->worker = TRUE;
+            saw_mode = 1;
+        } else if (token_equals(cursor, L"--show", &token_length) ||
+                token_equals(cursor, L"--visible", &token_length)) {
+            options->show_window = TRUE;
+        } else if (token_equals(cursor, L"--hide", &token_length) ||
+                token_equals(cursor, L"--hidden", &token_length)) {
+            options->show_window = FALSE;
+        } else {
+            return 0;
+        }
+        cursor += token_length;
+        if (*cursor != L'\0' && *cursor != L' ' && *cursor != L'\t') {
+            return 0;
+        }
+    }
+
+    if (!saw_mode) {
+        /* Flags only (e.g. just --show): still worker, but visible. */
+        options->worker = TRUE;
+    }
+    if (!options->worker) {
+        options->show_window = TRUE;
+    }
+    return 1;
+}
+
+
 static int publish_ready_marker(const WCHAR *marker_path)
 {
     static const char payload[] = "ready\n";
@@ -238,7 +329,7 @@ static int wait_for_worker_ready(HANDLE worker_process, HANDLE stop_event,
 }
 
 
-static int configure_instance_guard_env(BOOL worker)
+static int configure_instance_guard_env(const StarterOptions *options)
 {
     WCHAR guard_path[MAX_PATH];
 
@@ -264,7 +355,7 @@ static int configure_instance_guard_env(BOOL worker)
     if (!SetEnvironmentVariableW(GUARD_PATH_ENV, guard_path)) {
         return 0;
     }
-    if (worker) {
+    if (options->worker) {
         if (!SetEnvironmentVariableW(WORKER_MODE_ENV, WORKER_MODE_VALUE)) {
             return 0;
         }
@@ -278,7 +369,7 @@ static int configure_instance_guard_env(BOOL worker)
 }
 
 
-static int launch_client(const WCHAR *game_path, BOOL worker,
+static int launch_client(const WCHAR *game_path, const StarterOptions *options,
         HANDLE stop_event)
 {
     WCHAR child_command[2 * MAX_PATH];
@@ -292,11 +383,18 @@ static int launch_client(const WCHAR *game_path, BOOL worker,
     DWORD wait_state;
     int ready_state;
     int result = 1;
+    BOOL worker;
+    BOOL hide_desktop;
+
+    worker = options->worker;
+    /* Worker stays hidden by default; --show keeps it on the interactive
+     * desktop so you can watch the client while debugging. */
+    hide_desktop = worker && !options->show_window;
 
     ZeroMemory(&process, sizeof(process));
     ready_marker[0] = L'\0';
 
-    if (!configure_instance_guard_env(worker)) {
+    if (!configure_instance_guard_env(options)) {
         log_failure("configure_instance_guard_env", GetLastError());
         return worker ? 20 : 21;
     }
@@ -331,7 +429,7 @@ static int launch_client(const WCHAR *game_path, BOOL worker,
 
     ZeroMemory(&startup, sizeof(startup));
     startup.cb = sizeof(startup);
-    if (worker) {
+    if (hide_desktop) {
         if (FAILED(StringCchPrintfW(desktop_name, 96,
                 L"VVGWorker_%lu", (unsigned long)GetCurrentProcessId())) ||
                 FAILED(StringCchPrintfW(full_desktop_name, 128,
@@ -343,10 +441,13 @@ static int launch_client(const WCHAR *game_path, BOOL worker,
             /* Fall back to the default desktop if CreateDesktop is denied. */
             log_failure("CreateDesktopW", GetLastError());
             startup.lpDesktop = 0;
+            SetEnvironmentVariableW(HIDDEN_DESKTOP_ENV, 0);
         } else {
             startup.lpDesktop = full_desktop_name;
             SetEnvironmentVariableW(HIDDEN_DESKTOP_ENV, HIDDEN_DESKTOP_VALUE);
         }
+    } else {
+        SetEnvironmentVariableW(HIDDEN_DESKTOP_ENV, 0);
     }
 
     if (!CreateProcessW(game_path, child_command, 0, 0, FALSE,
@@ -435,7 +536,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
     HANDLE singleton = 0;
     DWORD stop_target = 0;
     int stop_state;
-    BOOL worker = TRUE;
+    StarterOptions options;
     int result;
 
     (void)instance;
@@ -450,10 +551,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
     if (stop_state > 0) {
         return signal_starter_stop(stop_target);
     }
-    if (lstrcmpiW(command_line, L"--player") == 0) {
-        worker = FALSE;
-    } else if (command_line != 0 && command_line[0] != L'\0' &&
-            lstrcmpiW(command_line, L"--worker-only") != 0) {
+    if (!parse_launch_args(command_line, &options)) {
         log_failure("unsupported_mode", ERROR_INVALID_PARAMETER);
         return 30;
     }
@@ -473,7 +571,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
         return 29;
     }
 
-    if (worker) {
+    if (options.worker) {
         singleton = CreateMutexW(0, TRUE, WORKER_MUTEX_NAME);
         if (singleton == 0) {
             log_failure("CreateMutexW", GetLastError());
@@ -487,7 +585,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
         }
     }
 
-    result = launch_client(game_path, worker, stop_event);
+    result = launch_client(game_path, &options, stop_event);
     if (singleton != 0) {
         CloseHandle(singleton);
     }
