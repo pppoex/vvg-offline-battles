@@ -7,6 +7,7 @@ from __future__ import absolute_import, division, print_function
 
 import socket
 import socketserver
+import sys
 import threading
 import time
 
@@ -47,6 +48,16 @@ from protocol.messages import (
 from protocol.serializer import LineDecoder, encode_message
 from sim_worker.room.room import Room
 from sim_worker.tick import TickLoop
+
+
+def _log(message):
+    """Console log for operators (always flushed)."""
+    try:
+        sys.stdout.write('[sim-worker] %s\n' % message)
+        sys.stdout.flush()
+    except Exception:
+        pass
+
 
 
 class GameWorld(object):
@@ -164,6 +175,8 @@ class ClientHandler(socketserver.BaseRequestHandler):
     def handle(self):
         server = self.server.game_server
         conn = self.request
+        peer = '%s:%s' % (self.client_address[0], self.client_address[1])
+        _log('accept from %s' % peer)
         try:
             conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         except OSError:
@@ -176,9 +189,11 @@ class ClientHandler(socketserver.BaseRequestHandler):
             # --- 收首条 hello ---
             hello = self._read_one(decoder, conn)
             if hello is None:
+                _log('%s closed before hello' % peer)
                 return
             kind = message_type_of(hello)
             if kind != MSG_HELLO:
+                _log('%s rejected: first message was %s' % (peer, kind))
                 self._send_raw(conn, build_error(
                     ERROR_INVALID_HELLO, 'first message must be hello',
                     close=True))
@@ -186,9 +201,14 @@ class ClientHandler(socketserver.BaseRequestHandler):
 
             session, error = server.accept_hello(hello, conn, self.client_address)
             if session is None:
+                _log('%s rejected: %s (%s)' % (peer, error[0], error[1]))
                 self._send_raw(conn, build_error(
                     error[0], error[1], close=True))
                 return
+
+            _log('join player_id=%s name=%s vehicle=%s team=%s peer=%s' % (
+                session.player_id, session.name, session.vehicle,
+                session.team, peer))
 
             welcome = server.build_welcome(session)
             if not session.send(welcome):
@@ -235,10 +255,13 @@ class ClientHandler(socketserver.BaseRequestHandler):
                     if not server.dispatch_message(session, message):
                         break
         except (ProtocolError, ValueError) as exc:
+            _log('%s protocol error: %s' % (peer, exc))
             self._send_raw(conn, build_error(
                 ERROR_INVALID_HELLO, str(exc), close=True))
         finally:
             if session is not None:
+                _log('leave player_id=%s name=%s' % (
+                    session.player_id, session.name))
                 server.detach_session(session)
             try:
                 conn.shutdown(socket.SHUT_RDWR)
@@ -517,11 +540,15 @@ class GameServer(object):
                 denied = None
         if not ok:
             session.send(denied)
+            _log('start_battle denied for player_id=%s reason=%s' % (
+                session.player_id, result))
             return True
         # 屏障消息按序广播给全员
         self.world.broadcast(events['battle_start'])
         self.world.broadcast(events['battle_live'])
         self.broadcast_roster()
+        _log('battle started round_id=%s by player_id=%s' % (
+            events['battle_start'].get('round_id'), session.player_id))
         return True
 
     def _handle_select_team(self, session, message):

@@ -72,11 +72,13 @@ def main(argv=None):
     print('[sim-worker] protocol=%d listen=%s:%d map=%s tick=%.1fHz snap=%.1fHz'
           % (PROTOCOL_VERSION, server.host, args.port, args.map_name,
              server.tick_hz, server.snapshot_hz or 0.0))
+    sys.stdout.flush()
     # start 在绑定后填充 bound_port（port=0 时有用）
     server.start(background=True)
     if server.bound_port != args.port:
         print('[sim-worker] bound port=%d' % server.bound_port)
     print('[sim-worker] ready')
+    sys.stdout.flush()
     try:
         # 前台等待直到 stop
         while server.world.running and not stop_event.is_set():
