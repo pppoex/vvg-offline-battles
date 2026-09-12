@@ -20,9 +20,13 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 
-# Read-only Offline source (never write here)
+# Read-only Offline source (never write here) — package body
 OFFLINE_MOD_SRC = os.path.normpath(
     r'D:\Projects\Offline2.3.1.2\script\client\gui\mods')
+
+# Fixed entry (cleans Decompyle++ UnboundLocalError in init/fini)
+FIXED_ENTRY = os.path.join(
+    ROOT, 'src', 'client', 'offline_entry', 'mod_offhangar2.py')
 
 DEFAULT_GAME_ROOT = os.path.normpath(
     r'D:\WOT\World_of_Tanks_EU_Offline_2.3.1.2')
@@ -50,7 +54,11 @@ def install(game_root, python27=None):
     game_root = os.path.normpath(game_root)
     mods_dir = os.path.join(game_root, RES_MODS_REL)
 
-    entry_src = os.path.join(OFFLINE_MOD_SRC, MOD_ENTRY)
+    entry_src = FIXED_ENTRY
+    if not os.path.isfile(entry_src):
+        # Fallback only if workspace entry is missing
+        entry_src = os.path.join(OFFLINE_MOD_SRC, MOD_ENTRY)
+        _log('WARNING: using unfixed Offline entry (decompyle artifact)')
     pkg_src = os.path.join(OFFLINE_MOD_SRC, PACKAGE_DIR)
     if not os.path.isfile(entry_src):
         raise SystemExit('missing Offline mod entry: %s' % entry_src)
