@@ -16,8 +16,8 @@
 
 ## 最后 commit
 
-- **hash**: `9ac649c`
-- **message**: `feat(client): M6 join 拦截与本机 Web 状态页 [TASK-M6]`
+- **hash**: `eeb68e7`
+- **message**: `feat(sim_worker): worker pose 中继与原地 Bot [TASK-M6]`
 - **已推送**: `master` → `origin/main`
 
 M5 关键业务 commit：
