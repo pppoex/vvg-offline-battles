@@ -130,8 +130,14 @@ def start_room_web(session=None):
         return _web.url
     client = getattr(session, 'client', None) if session is not None else None
     try:
+        from ..webui.server import DEFAULT_PORT, find_free_port
+    except (ImportError, ValueError):
+        from vvg_client.webui.server import DEFAULT_PORT, find_free_port
+    try:
+        # Offline shop owns 18080; start scanning at our DEFAULT_PORT (19080).
+        port = find_free_port('127.0.0.1', start=DEFAULT_PORT)
         _controller = WebController(client, session=session)
-        _web = StatusWebServer(_controller)
+        _web = StatusWebServer(_controller, port=port)
         url = _web.start()
     except Exception as exc:
         _log('web start failed: %s' % exc)

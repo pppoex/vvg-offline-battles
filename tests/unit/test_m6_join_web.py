@@ -176,6 +176,8 @@ def test_join_gate_intercepts_enqueue(monkeypatch):
     join_gate._orig_enter_random = None
     join_gate._fight_button = None
     join_gate._last_handler_at = 0.0
+    join_gate._in_enqueue = False
+    join_gate._exit_queue_at = 0.0
 
     fake_server = _FakeFakeServer()
     battle = _FakeBattle()

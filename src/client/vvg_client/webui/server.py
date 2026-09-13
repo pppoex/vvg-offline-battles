@@ -20,7 +20,8 @@ try:
 except ImportError:
     from socketserver import ThreadingMixIn
 
-DEFAULT_PORT = 18080
+# Offline hangar already binds 18080 (shop). Must not collide.
+DEFAULT_PORT = 19080
 MAX_PORT_TRIES = 64
 
 _LOG_PREFIX = '[VVG webui] '

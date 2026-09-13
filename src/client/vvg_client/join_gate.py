@@ -20,6 +20,9 @@ _orig_enter_random = None
 _fight_button = None  # dict describing LobbyHeader patch state
 _last_handler_at = 0.0
 _HANDLER_COOLDOWN_SEC = 5.0
+_in_enqueue = False
+_exit_queue_at = 0.0
+_EXIT_QUEUE_COOLDOWN_SEC = 3.0
 
 
 def _log(message):
@@ -59,18 +62,26 @@ def _call_handler(veh_inv_id, arena_type_id):
 
 
 def _intercepted_enqueue(requestID, args):
-    arr = args[0] if args else []
-    veh_inv_id = arr[1] if len(arr) > 1 else None
-    arena_type_id = arr[3] if len(arr) > 3 else 0
-    _log('intercepted CMD_ENQUEUE vehInvID=%s arenaTypeID=%s' % (
-        veh_inv_id, arena_type_id))
-    dismiss_joining_ui()
+    global _in_enqueue
+    # Re-entrancy: exitFromQueue / respond must never re-enter enqueue.
+    if _in_enqueue:
+        _log('CMD_ENQUEUE re-entered; ignore')
+        return
+    _in_enqueue = True
     try:
-        _respond_success(requestID)
-    except Exception as exc:
-        _log('respond failed: %s' % exc)
-    dismiss_joining_ui()
-    _call_handler(veh_inv_id, arena_type_id)
+        arr = args[0] if args else []
+        veh_inv_id = arr[1] if len(arr) > 1 else None
+        arena_type_id = arr[3] if len(arr) > 3 else 0
+        _log('intercepted CMD_ENQUEUE vehInvID=%s arenaTypeID=%s' % (
+            veh_inv_id, arena_type_id))
+        dismiss_joining_ui()
+        try:
+            _respond_success(requestID)
+        except Exception as exc:
+            _log('respond failed: %s' % exc)
+        _call_handler(veh_inv_id, arena_type_id)
+    finally:
+        _in_enqueue = False
 
 
 def _respond_success(requestID):
@@ -90,25 +101,41 @@ def _respond_success(requestID):
 
 
 def _intercepted_enter_random(vehInvID=None, arenaTypeID=0, *args, **kwargs):
-    _log('intercepted battle.enterRandom vehInvID=%s arenaTypeID=%s' % (
-        vehInvID, arenaTypeID))
-    dismiss_joining_ui()
-    _call_handler(vehInvID, arenaTypeID)
+    global _in_enqueue
+    if _in_enqueue:
+        _log('enterRandom re-entered; ignore')
+        return False
+    _in_enqueue = True
+    try:
+        _log('intercepted battle.enterRandom vehInvID=%s arenaTypeID=%s' % (
+            vehInvID, arenaTypeID))
+        dismiss_joining_ui()
+        _call_handler(vehInvID, arenaTypeID)
+    finally:
+        _in_enqueue = False
     return False
 
 
 def _wrapped_fight_click(header, map_id=None, action_name=None):
     """Earliest Battle! click — never fall through to stock joining screen."""
-    _log('fightClick map_id=%s action=%s' % (map_id, action_name))
-    dismiss_joining_ui()
-    veh = None
-    arena = 0
+    global _in_enqueue
+    if _in_enqueue:
+        _log('fightClick re-entered; ignore')
+        return None
+    _in_enqueue = True
     try:
-        if header is not None:
-            veh = getattr(header, 'selectedVehicleInvID', None)
-    except Exception:
-        pass
-    _call_handler(veh, arena)
+        _log('fightClick map_id=%s action=%s' % (map_id, action_name))
+        dismiss_joining_ui()
+        veh = None
+        arena = 0
+        try:
+            if header is not None:
+                veh = getattr(header, 'selectedVehicleInvID', None)
+        except Exception:
+            pass
+        _call_handler(veh, arena)
+    finally:
+        _in_enqueue = False
     return None
 
 
@@ -194,7 +221,16 @@ def _resolve_lobby_header_type():
 
 
 def exit_stock_queue():
-    """Dismiss stock random-queue joining UI (prb entity exitFromQueue)."""
+    """Dismiss stock random-queue joining UI.
+
+    CRITICAL: exitFromQueue TOGGLES by queue state. Calling it while not
+    queued re-enters queue() → CMD_ENQUEUE → this hook → recursion (log
+    showed maximum recursion depth exceeded and a hung client).
+    """
+    global _exit_queue_at
+    now = time.time()
+    if (now - _exit_queue_at) < _EXIT_QUEUE_COOLDOWN_SEC:
+        return False
     try:
         import BigWorld
         from gui.prb_control.dispatcher import g_prbLoader
@@ -204,22 +240,19 @@ def exit_stock_queue():
     try:
         dispatcher = g_prbLoader.getDispatcher()
         if dispatcher is None:
-            _log('exit_stock_queue: no prb dispatcher')
             return False
         player = BigWorld.player()
         in_queue = bool(getattr(player, 'isInRandomQueue', False))
+        # Never call exitFromQueue unless we are actually queued.
+        if not in_queue:
+            return False
         entity = dispatcher.getEntity()
         exit_from_queue = getattr(entity, 'exitFromQueue', None)
         if not callable(exit_from_queue):
-            _log('exit_stock_queue: entity has no exitFromQueue')
             return False
-        if in_queue:
-            exit_from_queue()
-            _log('exit_stock_queue: exitFromQueue called')
-            return True
-        # Still try once: some paths leave the screen without the flag.
+        _exit_queue_at = now
         exit_from_queue()
-        _log('exit_stock_queue: exitFromQueue called (flag was false)')
+        _log('exit_stock_queue: exitFromQueue called')
         return True
     except Exception as exc:
         _log('exit_stock_queue failed: %s' % exc)
@@ -245,16 +278,23 @@ def hide_waiting_overlay():
                 return False
             _log('Waiting.hide() ok')
             return True
-        _log('Waiting.hide not callable')
+        # 2.3.1.2 Waiting may expose only module-level functions.
+        hide_fn = getattr(Waiting, 'hide', None)
+        if hide_fn is None and hasattr(Waiting, '__name__'):
+            _log('Waiting.hide not callable')
     except Exception as exc:
         _log('Waiting import/hide failed: %s' % exc)
     return False
 
 
 def dismiss_joining_ui():
-    """Best-effort close of every joining surface we know about."""
+    """Best-effort close of joining surfaces. Safe to call often."""
     exit_stock_queue()
-    hide_waiting_overlay()
+    # Waiting.hide is cheap and does not toggle queue state.
+    try:
+        hide_waiting_overlay()
+    except Exception:
+        pass
 
 
 def install():
