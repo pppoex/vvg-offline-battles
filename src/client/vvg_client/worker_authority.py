@@ -173,17 +173,16 @@ class WorkerAuthority(object):
     def on_battle_start(self, message):
         round_id = int(message.get('round_id') or 0)
         map_name = message.get('map') or getattr(self.client, 'map_name', None)
-        _log('battle_start round=%s map=%s (authority enter first)' % (
+        _log('battle_start round=%s map=%s (authority enter)' % (
             round_id, map_name))
         self._last_round = round_id
         self.in_battle = True
-        # Authority worker enters Offline FIRST (not observation mode).
-        # Offline private bots stay off; sim-worker bots + poses are the roster.
+        # 0.9.22: worker is authority in a native battle space, not a room
+        # player. Offline private bots stay off; sim-worker roster + poses
+        # carry the shared battle.
         self.space_entered = enter_offline_space(
             map_name,
             log_prefix=LOG_PREFIX,
-            lan_player=False,
-            worker_observe=False,
             authority=True,
         )
         _log('authority space_entered=%s' % bool(self.space_entered))

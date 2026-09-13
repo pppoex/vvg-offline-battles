@@ -124,31 +124,8 @@ class GameWorld(object):
         with self.lock:
             self._tick = server_tick
             end_reason = self.room.tick_once(dt, server_tick)
-            pending = self.pending_player_start
-            pending_round = self.pending_player_start_round
-            started_at = self.pending_player_start_at
-            timeout = getattr(self, 'worker_enter_timeout', 8.0)
-            in_room_round = self.room.worker_entered_round_id
-            room_round = self.room.round_id
         if end_reason:
             self._announce_battle_end(end_reason)
-            with self.lock:
-                self.pending_player_start = False
-            return
-        # Watchdog: pull players if worker never reports entry.
-        if pending and pending_round == room_round:
-            now = time.time()
-            if in_room_round == room_round:
-                return
-            if started_at and (now - started_at) >= timeout:
-                _log('worker_enter timeout; pulling players anyway')
-                try:
-                    self._pull_players_into_battle()
-                except Exception:
-                    pass
-                with self.lock:
-                    self.room.worker_entered_round_id = room_round
-                    self.pending_player_start = False
 
     def _announce_battle_end(self, reason):
         """Broadcast battle_end event + waiting roster after auto/manual end."""
@@ -627,57 +604,21 @@ class GameServer(object):
             _log('start_battle denied for player_id=%s reason=%s' % (
                 session.player_id, result))
             return True
-        if worker_connected:
-            # Worker enters first; players get battle_start after worker_entered.
-            worker.send(events['battle_start'])
-            worker.send(events['battle_live'])
-            self.world.pending_player_start = True
-            self.world.pending_player_start_round = self.world.room.round_id
-            self.world.pending_player_start_at = time.time()
-            _log('battle started round_id=%s map=%s; waiting for worker to enter '
-                 'worker_id=%s' % (
-                     events['battle_start'].get('round_id'),
-                     events['battle_start'].get('map'),
-                     getattr(worker, 'player_id', None)))
-        else:
-            self.world.pending_player_start = False
-            self.world.broadcast(events['battle_start'])
-            self.world.broadcast(events['battle_live'])
-            _log('battle started round_id=%s map=%s by player_id=%s (no worker)'
-                 % (events['battle_start'].get('round_id'),
-                    events['battle_start'].get('map'),
-                    session.player_id))
+        # 0.9.22 model: battle_start goes to the whole room (worker + players).
+        # Worker enters as authority; players enter for rendering. Same round.
+        self.world.broadcast(events['battle_start'])
+        self.world.broadcast(events['battle_live'])
+        self.world.pending_player_start = False
+        _log('battle started round_id=%s map=%s by player_id=%s worker=%s' % (
+            events['battle_start'].get('round_id'),
+            events['battle_start'].get('map'),
+            session.player_id,
+            bool(worker_connected)))
         self.broadcast_roster()
         return True
 
     def _pull_players_into_battle(self):
-        """Send battle_start/live to player sessions (worker already in)."""
-        from protocol.messages import build_battle_live, build_battle_start
-        with self.world.lock:
-            if self.world.room.phase != PHASE_BATTLE:
-                return False
-            start = build_battle_start(
-                self.world.room.round_id,
-                self.world.room.map_name,
-                state_revision=self.world.room.state_revision)
-            live = build_battle_live(
-                self.world.room.round_id,
-                server_tick=0,
-                state_revision=self.world.room.state_revision,
-                server_time_ms=self._now_ms(),
-                countdown_seconds=0.0,
-                battle_duration_seconds=self.world.room.battle_duration_seconds,
-            )
-            self.world.pending_player_start = False
-            player_ids = []
-            for sess in self.world.all_sessions():
-                if getattr(sess, 'role', 'player') == ROLE_PLAYER:
-                    player_ids.append(sess.player_id)
-                    sess.send(start)
-                    sess.send(live)
-        _log('pulled players into battle round_id=%s players=%s' % (
-            start.get('round_id'), player_ids))
-        self.broadcast_roster()
+        """No-op when battle_start is already broadcast to the room."""
         return True
 
     def _handle_worker_entered(self, session, message):
@@ -685,25 +626,18 @@ class GameServer(object):
             getattr(session, 'role', None) == ROLE_WORKER
             or session is self.world.worker_session)
         if not is_worker:
-            _log('worker_entered rejected from player_id=%s role=%s' % (
+            _log('worker_entered ignored from player_id=%s role=%s' % (
                 session.player_id, getattr(session, 'role', '?')))
             return True
         round_id = message.get('round_id')
         map_name = message.get('map')
-        first = False
         with self.world.lock:
             first = self.world.room.mark_worker_entered(round_id)
             phase = self.world.room.phase
             room_round = self.world.room.round_id
-        _log('worker_entered received round_id=%s map=%s phase=%s '
-             'room_round=%s first=%s' % (
+        _log('worker_entered (authority in space) round_id=%s map=%s '
+             'phase=%s room_round=%s first=%s' % (
                  round_id, map_name, phase, room_round, first))
-        if phase != PHASE_BATTLE:
-            return True
-        if int(round_id or 0) != room_round:
-            _log('worker_entered round mismatch; still pulling players '
-                 'room_round=%s' % room_round)
-        self._pull_players_into_battle()
         return True
 
     def _handle_worker_pose(self, session, message):

@@ -265,6 +265,7 @@ class BattleClient(object):
         except Exception:
             pass
         if self.worker_authority is not None:
+            # Authority worker: enter Offline space and publish poses.
             try:
                 self.worker_authority.on_battle_start(message)
             except Exception as exc:
@@ -275,7 +276,7 @@ class BattleClient(object):
                 except Exception:
                     pass
         elif self.role == ROLE_PLAYER:
-            # Visible client is pulled in after worker_entered.
+            # Visible client: same round as worker; Offline enter is local view.
             try:
                 from ..worker_authority import enter_offline_space
             except (ImportError, ValueError):
