@@ -244,6 +244,21 @@ class BattleClient(object):
                 self.worker_authority.on_battle_start(message)
             except Exception:
                 pass
+        elif self.role == ROLE_PLAYER:
+            # Visible client must load Offline battle space on battle_start.
+            try:
+                from ..worker_authority import enter_offline_space
+            except (ImportError, ValueError):
+                try:
+                    from vvg_client.worker_authority import enter_offline_space
+                except Exception:
+                    enter_offline_space = None
+            if enter_offline_space is not None:
+                try:
+                    enter_offline_space(self.map_name, log_prefix='[VVG player] ')
+                    self.send_battle_ready()
+                except Exception:
+                    pass
 
     def _on_battle_live(self, message):
         if 'round_id' in message:
@@ -255,6 +270,19 @@ class BattleClient(object):
                 self.worker_authority.on_battle_live(message)
             except Exception:
                 pass
+        elif self.role == ROLE_PLAYER:
+            try:
+                from ..worker_authority import enter_offline_space
+            except (ImportError, ValueError):
+                try:
+                    from vvg_client.worker_authority import enter_offline_space
+                except Exception:
+                    enter_offline_space = None
+            if enter_offline_space is not None:
+                try:
+                    enter_offline_space(self.map_name, log_prefix='[VVG player] ')
+                except Exception:
+                    pass
 
     def _on_snapshot(self, message):
         self.last_snapshot = message

@@ -25,6 +25,50 @@ _MAP_ALIASES = {
 }
 
 
+def resolve_map_name(map_name):
+    if not map_name:
+        return '06_ensk'
+    return _MAP_ALIASES.get(map_name, map_name)
+
+
+def enter_offline_space(map_name, log_prefix=None):
+    """Enter Offline battle space (player or worker). Returns True on success."""
+    prefix = log_prefix or LOG_PREFIX
+    geometry = resolve_map_name(map_name)
+    try:
+        from gui.mods.offhangar2 import battle
+    except Exception as exc:
+        sys.stdout.write('%s battle module unavailable: %s\n' % (prefix, exc))
+        return False
+    try:
+        already = False
+        if getattr(battle, 'isInBattle', None):
+            already = bool(battle.isInBattle())
+        if already:
+            sys.stdout.write('%s already in battle; skip enter\n' % prefix)
+            return True
+        result = battle.enter(geometry)
+        sys.stdout.write('%s battle.enter(%r) -> %s\n' % (
+            prefix, geometry, result))
+        return bool(result)
+    except Exception as exc:
+        sys.stdout.write('%s battle.enter failed: %s\n' % (prefix, exc))
+        return False
+
+
+def leave_offline_space(log_prefix=None):
+    prefix = log_prefix or LOG_PREFIX
+    try:
+        from gui.mods.offhangar2 import battle
+        if getattr(battle, 'isInBattle', None) and battle.isInBattle():
+            battle.leave()
+            sys.stdout.write('%s battle.leave()\n' % prefix)
+            return True
+    except Exception as exc:
+        sys.stdout.write('%s battle.leave skipped: %s\n' % (prefix, exc))
+    return False
+
+
 def _log(message):
     try:
         sys.stdout.write(LOG_PREFIX + str(message) + '\n')
@@ -136,31 +180,12 @@ class WorkerAuthority(object):
         return _MAP_ALIASES.get(map_name, map_name)
 
     def _enter_offline_space(self, map_name):
-        geometry = self._resolve_map(map_name)
-        try:
-            from gui.mods.offhangar2 import battle
-        except Exception as exc:
-            _log('offline battle module unavailable: %s' % exc)
-            self.space_entered = False
-            return False
-        try:
-            result = battle.enter(geometry)
-            self.space_entered = bool(result)
-            _log('battle.enter(%r) -> %s' % (geometry, result))
-            return self.space_entered
-        except Exception as exc:
-            _log('battle.enter failed: %s' % exc)
-            self.space_entered = False
-            return False
+        self.space_entered = enter_offline_space(
+            map_name, log_prefix=LOG_PREFIX)
+        return self.space_entered
 
     def _leave_offline_space(self):
-        try:
-            from gui.mods.offhangar2 import battle
-            if getattr(battle, 'isInBattle', None) and battle.isInBattle():
-                battle.leave()
-                _log('battle.leave()')
-        except Exception as exc:
-            _log('battle.leave skipped: %s' % exc)
+        leave_offline_space(log_prefix=LOG_PREFIX)
 
     def _sample_local_pose(self):
         """Optional: read avatar position from loaded Offline space."""
@@ -203,4 +228,10 @@ def install_on_session(session):
     return authority
 
 
-__all__ = ['WorkerAuthority', 'install_on_session']
+__all__ = [
+    'WorkerAuthority',
+    'install_on_session',
+    'enter_offline_space',
+    'leave_offline_space',
+    'resolve_map_name',
+]
