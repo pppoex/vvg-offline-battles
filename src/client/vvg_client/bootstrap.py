@@ -243,6 +243,17 @@ def init(name=None, vehicle=None, host=None, port=None, auto_connect=True):
     except Exception as hook_error:
         _log('hook install failed: %s' % hook_error)
 
+    role = getattr(client, 'role', 'player')
+    if role == 'player' or _client_mode() != 'simulation_worker':
+        try:
+            try:
+                from .ui import join_flow
+            except (ImportError, ValueError):
+                from vvg_client.ui import join_flow
+            join_flow.install()
+        except Exception as join_error:
+            _log('join_flow install failed: %s' % join_error)
+
     _started = True
     return _session
 

@@ -184,8 +184,8 @@ python -m launcher player --name Bob
 
 ## 10. 验收标准（M6）
 
-- [ ] 车库点战斗**不**进入 Offline 单机 battle / 不卡 joining
-- [ ] 本机浏览器可打开 Web 状态页并看到服务器/地图/玩家
+- [ ] 车库点战斗**不**进入 Offline 单机 battle / 不卡 joining（Phase2 代码就绪，待真机）
+- [ ] 本机浏览器可打开 Web 状态页并看到服务器/地图/玩家（Phase2 代码就绪，待真机）
 - [ ] 仅房主可点开战；开战后双方进同一战斗
 - [ ] 双方可见彼此车辆移动与炮塔（插值呈现）
 - [ ] 权威在 worker 游戏进程；玩家客户端不跑 Offline drive 权威
@@ -194,6 +194,16 @@ python -m launcher player --name Bob
 - [ ] leave_battle 可回车库
 - [ ] 原地 Bot 可在名单中（可选：可生成原地 Bot）
 - [ ] 单测 + 集成测试；协议与设计文档更新
+
+### 实现进度
+
+| Phase | 状态 | 说明 |
+|---|---|---|
+| 设计确认 | ✅ | 用户确认 |
+| 协议/房间 host | ✅（M3 已有） | host_player_id / start_battle 仅 host / battle_ready |
+| Phase2 join+Web | ✅ 代码 | join_gate + webui + join_flow + bootstrap；单测通过 |
+| Phase3 worker 权威 | ⬜ | start_battle 后进 Offline battle；原地 Bot |
+| Phase4 呈现/离开 | ⬜ | 0.9.22 呈现适配；车数据 hash；leave |
 
 ## 11. 风险
 

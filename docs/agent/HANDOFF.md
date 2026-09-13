@@ -4,13 +4,14 @@
 
 ## 当前阶段
 
-**M0–M5 代码完成；M6 联机架构已与用户确认（设计文档就绪，编码未开始）**
+**M0–M5 完成；M6 架构已确认；Phase2（join 拦截 + 本机 Web）代码完成**
 
-- M0–M5 代码完成（M4 真机通过；M5 已到车库，join 仍会进 Offline 单机 → M6 拦截）
-- **M6 架构已确认**：见 `docs/design/m6_architecture.md` + DECISIONS 新增条目
+- M0–M5 代码完成（M4 真机通过；M5 已到车库，join 曾进 Offline 单机）
+- **M6 架构**：`docs/design/m6_architecture.md`
+- **Phase2 已实现**：`join_gate` + `webui` + `ui/join_flow` + bootstrap 接线
 - 拓扑：0.9.22 三层（客户端 → Python sim-worker → 隐藏游戏 worker 权威）
-- UI：本机 Web 状态页；局域网；无白名单地图/车；原地 Bot；移植 0.9.22 呈现
-- 下一步：按 m6_architecture 编码（join_gate → 协议/房间 → worker 进 battle → 同步与呈现）
+- 未做：worker 进 battle、远端呈现移植、车数据 hash、leave 细化、真机验收
+- 下一步：Phase3 worker 权威 + 同步；Phase4 呈现
 
 远程仓库：https://github.com/pppoex/vvg-offline-battles  
 分支：`main`（开发，本地名 `master`）、`base`（存档）
@@ -69,25 +70,34 @@ M4 关键业务 commit 摘要：
 
 ## 正在处理
 
-- M6 联机架构讨论完成；设计已写入 `docs/design/m6_architecture.md`
-- 业务编码尚未开始
+- M6 Phase2 代码完成；Phase3+ 未开始
+- 真机：点战斗应打开浏览器状态页（需 launcher build+deploy）
 
 ## 下一步建议
 
-### M6 编码顺序（建议）
+### M6 Phase3（优先）
 
-1. **join_gate**：拦截 Offline `battle.enterRandom` / CMD_ENQUEUE，防 joining 卡死
-2. **protocol + sim_worker room**：host/ready/map/start_battle；worker 提案中继
-3. **client webui**：本机 HTTP 状态页 + 浏览器拉起 + 18080 递增
-4. **worker**：start_battle 后进入 Offline battle 空间；原地 Bot
-5. **presentation + interpolation**：适配 0.9.22 远端呈现
-6. **车数据一致性校验**；leave 回车库
-7. 真机：本机双开 + 局域网第二台
+1. worker 收 start_battle 后进入 Offline battle 空间（安全降级）
+2. 原地 Bot 名册；worker pose → snapshot 中继
+3. 车数据一致性校验
 
-### 文档
+### M6 Phase4
 
-- 详细设计：`docs/design/m6_architecture.md`
-- 决策：`docs/agent/DECISIONS.md`（M6 系列新增）
+1. 远端车呈现（0.9.22 适配或最小 pose 驱动）
+2. leave_battle 回车库细化
+3. 真机双开 + 局域网
+
+### 真机（Phase2）
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m launcher build
+python -m launcher deploy
+python -m launcher server
+python -m launcher worker --hide
+python -m launcher player --name Alice
+# 车库点「战斗」→ 应打开 http://127.0.0.1:18080/
+```
 
 ## 关键文件
 
