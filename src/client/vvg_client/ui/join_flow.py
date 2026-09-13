@@ -56,7 +56,7 @@ def start_room_web(session=None):
         return None
     if _web is not None:
         return _web.url
-    _controller = WebController(session.client)
+    _controller = WebController(session.client, session=session)
     _web = StatusWebServer(_controller)
     try:
         url = _web.start()
@@ -110,6 +110,21 @@ def install():
     return ok
 
 
+def leave_to_garage():
+    """Client-side leave battle (Web / future UI hook)."""
+    session = _get_session()
+    if session is None:
+        _log('leave_to_garage: no session')
+        return False
+    try:
+        ok = session.leave_battle()
+        _log('leave_to_garage -> %s' % ok)
+        return ok
+    except Exception as exc:
+        _log('leave_to_garage failed: %s' % exc)
+        return False
+
+
 def web_url():
     return _web.url if _web is not None else None
 
@@ -120,5 +135,6 @@ __all__ = [
     'start_room_web',
     'stop_room_web',
     'open_browser',
+    'leave_to_garage',
     'web_url',
 ]

@@ -59,8 +59,9 @@ class _ThreadedHTTP(ThreadingMixIn, HTTPServer):
 class WebController(object):
     """Adapts BattleClient / ClientSession to the status page."""
 
-    def __init__(self, client):
+    def __init__(self, client, session=None):
         self.client = client
+        self.session = session
 
     def get_status(self):
         client = self.client
@@ -100,6 +101,15 @@ class WebController(object):
             ok = client.send_start_battle()
             return bool(ok), '' if ok else 'send_failed'
         return False, 'no_start_api'
+
+    def request_leave(self):
+        owner = getattr(self, 'session', None)
+        if owner is not None and hasattr(owner, 'leave_battle'):
+            return bool(owner.leave_battle())
+        client = self.client
+        if hasattr(client, 'send_leave_battle'):
+            return bool(client.send_leave_battle())
+        return False
 
 
 class StatusWebServer(object):
@@ -197,6 +207,16 @@ class StatusWebServer(object):
                         'error': reason or None,
                     }), 'application/json')
                     return
+                if path == '/leave':
+                    try:
+                        ok = bool(controller.request_leave())
+                    except Exception as exc:
+                        self._send(500, json.dumps({'ok': False, 'error': str(exc)}),
+                                   'application/json')
+                        return
+                    self._send(200 if ok else 400, json.dumps({'ok': ok}),
+                               'application/json')
+                    return
                 self._send(404, 'not found', 'text/plain; charset=utf-8')
 
         port = self._port if self._port is not None else find_free_port(self.host)
@@ -272,11 +292,17 @@ def render_status_html(status, self_url):
         + ''.join(rows) +
         '</table>'
         '<button id="start" onclick="doStart()"' + start_disabled + '>开始战斗</button>'
+        '<button id="leave" onclick="doLeave()">离开战斗</button>'
         '<p id="msg" class="muted"></p>'
         '<script>'
         'function doStart(){'
         'fetch("/start",{method:"POST"}).then(function(r){return r.json();})'
         '.then(function(j){document.getElementById("msg").textContent=j.ok?"started":(j.error||"failed");'
+        'if(j.ok)location.reload();})'
+        '.catch(function(e){document.getElementById("msg").textContent=String(e);});}'
+        'function doLeave(){'
+        'fetch("/leave",{method:"POST"}).then(function(r){return r.json();})'
+        '.then(function(j){document.getElementById("msg").textContent=j.ok?"left":(j.error||"failed");'
         'if(j.ok)location.reload();})'
         '.catch(function(e){document.getElementById("msg").textContent=String(e);});}'
         '</script>'

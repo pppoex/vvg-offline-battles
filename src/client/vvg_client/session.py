@@ -10,6 +10,7 @@ from .network.client import BattleClient
 from .network.reconnect import ReconnectPolicy
 from .prediction.interpolation import SnapshotBuffer
 from .prediction.local_player import LocalPlayer
+from .presentation.remote_scene import RemoteScene
 
 
 class ClientSession(object):
@@ -32,12 +33,14 @@ class ClientSession(object):
         )
         self.local_player = LocalPlayer()
         self.snapshots = SnapshotBuffer()
+        self.remote_scene = RemoteScene(local_player_id=None)
         self.reconnect = (
             reconnect_policy if reconnect_policy is not None
             else ReconnectPolicy.from_config())
         self.interp_delay_ms = self._default_interp_delay(interp_delay_ms)
         self.connected_once = False
         self.last_tick_wall = None
+        self._last_phase = None
 
     @staticmethod
     def _default_interp_delay(explicit):
@@ -75,12 +78,47 @@ class ClientSession(object):
         self.connected_once = True
         self.reconnect.reset()
         self.local_player.player_id = self.client.player_id
+        self.remote_scene.local_player_id = self.client.player_id
         if self.client.spawn:
             self.local_player.apply_spawn(self.client.spawn)
         return welcome
 
     def stop(self, polite=True):
         self.client.disconnect(polite=polite)
+
+    def leave_battle(self):
+        """Leave current battle and return toward garage (M6 Phase4)."""
+        try:
+            self.client.send_leave_battle()
+        except Exception:
+            pass
+        authority = getattr(self.client, 'worker_authority', None)
+        if authority is not None:
+            try:
+                authority.on_leave_or_waiting()
+            except Exception:
+                pass
+        self.snapshots.clear()
+        self.remote_scene.clear()
+        self._last_phase = 'waiting'
+        self.client.phase = 'waiting'
+        self._offline_leave_best_effort()
+        return True
+
+    @staticmethod
+    def _offline_leave_best_effort():
+        """If this client is inside Offline battle space, leave it."""
+        try:
+            from gui.mods.offhangar2 import battle
+        except Exception:
+            return False
+        try:
+            if getattr(battle, 'isInBattle', None) and battle.isInBattle():
+                battle.leave()
+                return True
+        except Exception:
+            return False
+        return False
 
     # --- 每帧 ---------------------------------------------------------------
 
@@ -118,6 +156,8 @@ class ClientSession(object):
         if self.client.connected and not absorbed:
             self.local_player.step(dt)
 
+        self._sync_phase_and_scene()
+
         if send_input and self.client.connected and self.client.round_id:
             pose = self.local_player.pose()
             self.client.send_input(
@@ -136,7 +176,23 @@ class ClientSession(object):
             'phase': self.client.phase,
             'round_id': self.client.round_id,
             'pose': self.local_player.pose(),
+            'remote_count': len(self.remote_scene.entities()),
         }
+
+    def _sync_phase_and_scene(self):
+        phase = getattr(self.client, 'phase', None)
+        if phase == 'battle':
+            poses = self.remote_poses()
+            if poses:
+                try:
+                    self.remote_scene.apply_sample(poses)
+                except Exception:
+                    pass
+        elif self._last_phase == 'battle' and phase in ('waiting', 'finished', None):
+            # Round ended or left: drop remote registry.
+            self.remote_scene.clear()
+            self.snapshots.clear()
+        self._last_phase = phase
 
     def _absorb_authority(self):
         """Push new snapshot into buffer / local player. True if corrected."""

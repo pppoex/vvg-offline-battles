@@ -4,12 +4,13 @@
 
 ## 当前阶段
 
-**M0–M5 完成；M6 Phase2+Phase3 代码完成**
+**M0–M5 完成；M6 Phase2–4 代码完成（待真机验收）**
 
-- Phase2：join 拦截 + 本机 Web（`9ac649c`）
+- Phase2：join 拦截 + 本机 Web
 - Phase3：worker_pose 中继、原地 Bot、catalog_hash、worker 尝试进 Offline battle
-- 未做：远端呈现移植、leave 细化、真机验收
-- 下一步：Phase4 或真机验证 Phase2/3
+- Phase4：RemoteScene（插值远端 pose 注册表）、leave 回车库、Web `/leave`
+- 完整 0.9.22 compound Vehicle 呈现 **未移植**（需 2.3.1.2 API 适配）
+- 下一步：真机 build/deploy 联调；再考虑呈现深度
 
 远程仓库：https://github.com/pppoex/vvg-offline-battles  
 分支：`main`（开发，本地名 `master`）、`base`（存档）

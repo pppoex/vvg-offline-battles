@@ -201,9 +201,10 @@ python -m launcher player --name Bob
 |---|---|---|
 | 设计确认 | ✅ | 用户确认 |
 | 协议/房间 host | ✅（M3 已有） | host_player_id / start_battle 仅 host / battle_ready |
-| Phase2 join+Web | ✅ 代码 | join_gate + webui + join_flow + bootstrap；单测通过 |
+| Phase2 join+Web | ✅ 代码 | join_gate + webui + join_flow + bootstrap |
 | Phase3 worker 权威 | ✅ 代码 | worker_pose 中继；原地 Bot；catalog_hash；worker 尝试进 Offline battle |
-| Phase4 呈现/离开 | ⬜ | 0.9.22 呈现适配；leave 细化；真机验收 |
+| Phase4 呈现/离开 | ✅ 代码 | RemoteScene 注册表 + 插值驱动；leave 回车库；Web /leave；完整 0.9.22 compound 呈现后置 |
+| 真机验收 | ⬜ | 需 launcher build/deploy 后双端联调 |
 
 ## 11. 风险
 
