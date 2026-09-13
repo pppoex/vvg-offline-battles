@@ -41,6 +41,8 @@ class ClientSession(object):
         self.connected_once = False
         self.last_tick_wall = None
         self._last_phase = None
+        self._offline_was_in_battle = False
+        self._leave_notified = False
 
     @staticmethod
     def _default_interp_delay(explicit):
@@ -77,6 +79,8 @@ class ClientSession(object):
             return None
         self.connected_once = True
         self.reconnect.reset()
+        self._leave_notified = False
+        self._offline_was_in_battle = False
         self.local_player.player_id = self.client.player_id
         self.remote_scene.local_player_id = self.client.player_id
         if self.client.spawn:
@@ -102,6 +106,8 @@ class ClientSession(object):
         self.remote_scene.clear()
         self._last_phase = 'waiting'
         self.client.phase = 'waiting'
+        self._leave_notified = True
+        self._offline_was_in_battle = False
         self._offline_leave_best_effort()
         return True
 
@@ -120,6 +126,41 @@ class ClientSession(object):
             return False
         return False
 
+    def _offline_in_battle_now(self):
+        try:
+            from gui.mods.offhangar2 import battle
+            return bool(getattr(battle, 'isInBattle', None) and battle.isInBattle())
+        except Exception:
+            return False
+
+    def notify_offline_leave_if_needed(self):
+        """When Offline battle.leave is used (hotkey / Offline UI), sync server."""
+        if not self.client.connected:
+            return False
+        was = self._offline_was_in_battle
+        now = self._offline_in_battle_now()
+        if was and not now and not self._leave_notified:
+            _round = self.client.round_id
+            _log_leave = getattr(self, '_log', None)
+            try:
+                from sdk import log as sdk_log
+                sdk_log.info(
+                    'Offline battle left locally; sending leave_battle round=%s',
+                    _round)
+            except Exception:
+                pass
+            try:
+                self.client.send_leave_battle(_round)
+            except Exception:
+                pass
+            self._leave_notified = True
+            self._offline_was_in_battle = False
+            return True
+        self._offline_was_in_battle = now
+        if self.client.phase == 'waiting':
+            self._leave_notified = False
+        return False
+
     # --- 每帧 ---------------------------------------------------------------
 
     def tick(self, dt=None, forward=0.0, turn=0.0, aim_yaw=None,
@@ -130,6 +171,10 @@ class ClientSession(object):
         """
         received = self.client.pump()
         absorbed = self._absorb_authority()
+        try:
+            self.notify_offline_leave_if_needed()
+        except Exception:
+            pass
 
         authority = getattr(self.client, 'worker_authority', None) or getattr(
             self, 'worker_authority', None)

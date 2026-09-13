@@ -65,6 +65,16 @@ class WebController(object):
         self.session = session
 
     def get_status(self):
+        # Pump session so leave_battle / phase updates reach the status page.
+        session = getattr(self, 'session', None)
+        if session is not None:
+            try:
+                if hasattr(session, 'notify_offline_leave_if_needed'):
+                    session.notify_offline_leave_if_needed()
+                if hasattr(session, 'tick') and getattr(self.client, 'connected', False):
+                    session.tick(dt=0.0)
+            except Exception:
+                pass
         client = self.client
         if client is None:
             return {
