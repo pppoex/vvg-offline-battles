@@ -266,6 +266,13 @@ class ClientSession(object):
             except Exception:
                 pass
             return True
+        # No own row: still apply any actor pose from worker (shared round).
+        try:
+            from .worker_authority import apply_server_pose_to_local
+            if self.client.phase == 'battle':
+                apply_server_pose_to_local(self.client, session=self)
+        except Exception:
+            pass
         return False
 
     def remote_poses(self):

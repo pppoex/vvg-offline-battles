@@ -259,8 +259,10 @@ class BattleClient(object):
         try:
             import sys
             sys.stdout.write(
-                '[VVG client] battle_start round=%s map=%s role=%s\n' % (
-                    self.round_id, self.map_name, self.role))
+                '[VVG client] battle_start round=%s map=%s role=%s '
+                'state_rev=%s\n' % (
+                    self.round_id, self.map_name, self.role,
+                    self.state_revision))
             sys.stdout.flush()
         except Exception:
             pass

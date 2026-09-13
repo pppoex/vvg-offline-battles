@@ -19,6 +19,8 @@ from protocol.messages import build_worker_entered, build_worker_pose
 LOG_PREFIX = '[VVG worker_auth] '
 
 POSE_HZ = 15.0
+# 0.9.22 worker dummy is off-map so it never looks like a player tank.
+WORKER_DUMMY_Y = -500.0
 _MAP_ALIASES = {
     'vvg_default': '06_ensk',
     'training': '06_ensk',
@@ -132,9 +134,32 @@ def enter_offline_space(map_name, log_prefix=None, lan_player=False,
         result = battle.enter(geometry)
         sys.stdout.write('%s battle.enter(%r) authority=%s lan_player=%s -> %s\n' % (
             prefix, geometry, bool(authority), bool(lan_player), result))
+        if authority and result:
+            _move_worker_dummy_offmap(prefix)
         return bool(result)
     except Exception as exc:
         sys.stdout.write('%s battle.enter failed: %s\n' % (prefix, exc))
+        return False
+
+
+def _move_worker_dummy_offmap(prefix):
+    """Put the worker's local avatar off-map (0.9.22 WORKER_DUMMY_Y)."""
+    try:
+        import BigWorld
+    except Exception:
+        return False
+    try:
+        player = BigWorld.player()
+        if player is None:
+            return False
+        target = getattr(player, 'vehicle', None) or player
+        target.position = (0.0, float(WORKER_DUMMY_Y), 0.0)
+        sys.stdout.write(
+            '%s worker dummy at y=%s (not a room player)\n'
+            % (prefix, WORKER_DUMMY_Y))
+        return True
+    except Exception as exc:
+        sys.stdout.write('%s worker dummy move failed: %s\n' % (prefix, exc))
         return False
 
 
@@ -217,7 +242,7 @@ class WorkerAuthority(object):
         return self.send_pose(now)
 
     def collect_actors(self):
-        """Build worker_pose actor list from room roster."""
+        """Build worker_pose actor list from room roster + local samples."""
         client = self.client
         round_id = int(getattr(client, 'round_id', 0) or 0)
         actors = []
@@ -225,12 +250,17 @@ class WorkerAuthority(object):
         rows = []
         if isinstance(roster, dict):
             rows = list(roster.get('players') or ())
+        local_sample = self._sample_local_pose()
         for row in rows:
             actor_id = row.get('player_id') or row.get('id')
             if actor_id is None:
                 continue
-            pos = self._stable_pos(actor_id, row)
-            yaw = 0.0 if row.get('role') == 'bot' else 0.1 * (actor_id % 7)
+            # Worker dummy is not in roster. Use local pose for own id only.
+            if local_sample is not None and actor_id == getattr(client, 'player_id', None):
+                pos, yaw = local_sample
+            else:
+                pos = self._stable_pos(actor_id, row)
+                yaw = 0.0 if row.get('role') == 'bot' else 0.1 * (actor_id % 7)
             actors.append({
                 'id': int(actor_id),
                 'pos': pos,
@@ -244,6 +274,20 @@ class WorkerAuthority(object):
                 'team': row.get('team'),
             })
         return round_id, actors
+
+    def _sample_local_pose(self):
+        try:
+            import BigWorld
+            player = BigWorld.player()
+            entity = getattr(player, 'vehicle', None) or player
+            position = getattr(entity, 'position', None)
+            if position is None:
+                return None
+            yaw = float(getattr(entity, 'yaw', 0.0) or 0.0)
+            return ([float(position[0]), float(position[1]), float(position[2])],
+                    yaw)
+        except Exception:
+            return None
 
     def send_pose(self, now=None):
         round_id, actors = self.collect_actors()
