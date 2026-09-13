@@ -1,6 +1,6 @@
 # MILESTONES.md — 里程碑总览与进度追踪
 
-> 最后更新：2026-09-12（M5 代码完成后）
+> 最后更新：2026-09-13（M5 代码完成后推送）
 > 用途：追踪所有里程碑的进度、交付物、验收标准和未来方向
 
 ---
@@ -315,26 +315,32 @@ pytest tests/unit tests/integration
 
 | 路径 | 说明 |
 |---|---|
-| `src/launcher/cli.py` | `deploy` / `server` / `player` / `worker` 子命令 |
-| `src/launcher/paths.py` | 工作区 / 游戏根 / starter 路径 |
+| `src/launcher/cli.py` | `build` / `deploy` / `server` / `player` / `worker` 子命令 |
+| `src/launcher/paths.py` | 工作区 / 游戏根 / starter / `build/` 路径 |
 | `src/launcher/env.py` | `VVG_*` 环境变量组装 |
 | `src/launcher/ports.py` | 端口占用检测；可选 `--kill-port` |
 | `src/launcher/server.py` | 起停 sim-worker 并等就绪 |
 | `src/launcher/client.py` | starter / WorldOfTanks.exe 拉起客户端 |
+| `src/launcher/build.py` | native + pyc 一键构建入口 |
+| `src/launcher/bytecode.py` | Py2.7 字节码编译到 `build/` |
 | `src/deploy/install_all.py` | 三件套薄壳串联 |
+| `src/multiclient/native/build.ps1` | MSVC 输出改为 `build/multiclient/native/` |
 | `tests/integration/test_launcher.py` | 集成测试 |
 | `docs/design/launcher.md` | 使用与设计文档 |
 
 ### Commits
 
-- `feat(launcher): 命令行启动器与统一部署 [TASK-M5]`
+- `8e4f0da` feat(launcher): 命令行启动器与统一部署 [TASK-M5]
+- `6ff7ad5` feat(launcher): 构建产物统一到 build/ 并新增 build 子命令 [TASK-M5]
+- `f08dceb` feat(launcher): build 阶段编译 Python 2.7 pyc 至 build/ [TASK-M5]
 
 ### 验收标准
 
 - ✅ 部署脚本可用（install_all + dry-run 冒烟）
 - ✅ 启动器可用（CLI 解析 + sim-worker 子进程 bind 测试）
+- ✅ `launcher build` 产出 native + magic=62211 的 .pyc（`build/` 镜像 `src/`）
 - ✅ 文档完整（docs/design/launcher.md）
-- ⬜ 真机：launcher 一键 → 车库 + sim-worker accept/join（待用户）
+- ⬜ 真机：build → deploy → server → player 进车库并 join（待用户）
 
 ### 测试方式
 

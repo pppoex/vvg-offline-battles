@@ -19,7 +19,7 @@
 
 ## 2. 当前阶段
 
-**编码阶段：M0 / M1 / M2 / M3 已完成，下一个里程碑 M4**
+**编码阶段：M0–M5 代码完成（M4 真机通过）；下一步 M6 基础同步（M5 真机一键待用户验证）**
 
 已完成：
 - 第一阶段只读分析（7 篇文档）
@@ -27,17 +27,21 @@
 - M1 项目骨架与 SDK 抽取（hooks/log/config/math + 单测框架）
 - M2 协议与序列化（src/protocol + 单测 + docs/design/protocol.md）
 - M3 sim-worker 权威服务器骨架（TCP 握手 + 房间 + 30Hz tick + 15Hz 快照）
+- M4 薄客户端补丁（真机：进车库 + player/worker join）
+- M5 命令行启动器与统一部署（`python -m launcher build|deploy|server|player|worker`；产物在 `build/` 镜像 `src/`，含 Py2.7 .pyc）
 
 当前状态：
 - 可以写业务代码
-- 按里程碑推进（M4-M9）
+- 按里程碑推进（M6-M9）
 - 每个里程碑完成后运行测试、更新文档、提交 commit
+- 推送：本地 `master` → `origin/main`
 
 禁止：
 - 不修改游戏客户端本体（exe/dll/pkg）
 - 不修改参考项目
 - 不修改单机 mod 源项目
 - 部署只能通过工作区项目内脚本完成
+- 构建产物不得写入 `src/`（一律进 `build/`）
 
 ## 3. 关键路径
 

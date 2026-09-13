@@ -4,20 +4,29 @@
 
 ## 当前阶段
 
-**M5 代码完成（pytest 全绿）；真机一键待用户验证**
+**M0–M5 代码完成（M4 真机通过；M5 真机一键待用户验证）**
 
-M0 多实例、M1 SDK、M2 协议、M3 服务器骨架、M4 薄客户端均已完成。  
-M5 交付 `python -m launcher deploy|server|player|worker` 与 `install_all`。  
-下一步：用户真机验证 M5；随后进入 **M6 基础同步**（开工前确认 Bot AI / 战斗模式）。
+- M0 多实例、M1 SDK、M2 协议、M3 服务器骨架、M4 薄客户端、M5 启动器均已完成
+- M5：`python -m launcher build|deploy|server|player|worker`
+- 构建产物统一 `build/`（镜像 `src/`）：native `.pyd`/`.exe` + **Py2.7 .pyc（magic=62211）**
+- 下一步：用户真机验证 M5；随后 **M6 基础同步**（开工前确认 Bot AI / 战斗模式 / 地图）
 
 远程仓库：https://github.com/pppoex/vvg-offline-battles  
-分支：`main`（开发）、`base`（存档）
+分支：`main`（开发，本地名 `master`）、`base`（存档）
 
 ## 最后 commit
 
-- **hash**: `（见 git log — M5 feat commit）`
-- **message**: `feat(launcher): 命令行启动器与统一部署 [TASK-M5]`
-- **已推送**: 待确认后 `master` → `origin/main`
+- **hash**: `f08dceb`
+- **message**: `feat(launcher): build 阶段编译 Python 2.7 pyc 至 build/ [TASK-M5]`
+- **已推送**: `master` → `origin/main`（M5 三连 commit 一并推送）
+
+M5 关键业务 commit：
+
+| commit | 说明 |
+|---|---|
+| `8e4f0da` | 命令行启动器与统一部署 |
+| `6ff7ad5` | 构建产物统一到 `build/` + `launcher build` |
+| `f08dceb` | build 阶段编译 Python 2.7 pyc 至 `build/` |
 
 M4 关键业务 commit 摘要：
 
@@ -39,7 +48,7 @@ M4 关键业务 commit 摘要：
 4. **TASK-M2**: 协议与序列化
 5. **TASK-M3**: sim-worker 权威服务器骨架
 6. **TASK-M4**: 薄客户端补丁（**真机通过**）
-7. **TASK-M5**: 命令行启动器与统一部署（**代码+测试完成**）
+7. **TASK-M5**: 命令行启动器与统一部署（**代码+测试完成；真机一键待验**）
    - `src/launcher/{cli,paths,env,ports,server,client,build,bytecode}.py`
    - `src/deploy/install_all.py` 薄壳串联
    - `tests/integration/test_launcher.py`
@@ -59,7 +68,7 @@ M4 关键业务 commit 摘要：
 
 ## 正在处理
 
-- M5 代码已落地；等待用户真机验证
+- M5 代码已推送；等待用户真机验证
 
 ## 下一步建议
 
@@ -68,6 +77,7 @@ M4 关键业务 commit 摘要：
 ```powershell
 cd D:\Projects\vvg-offline-battles
 $env:PYTHONPATH = "src"
+python -m launcher build
 python -m launcher deploy
 # 终端 A
 python -m launcher server
@@ -84,8 +94,9 @@ python -m launcher player --name Alice
 
 ### M5
 
-- `src/launcher/**`
-- `src/deploy/install_all.py`
+- `src/launcher/**`（含 `build.py` / `bytecode.py`）
+- `src/deploy/install_all.py` / `install_*.py`
+- `src/multiclient/native/build.ps1`（输出到 `build/`）
 - `tests/integration/test_launcher.py`
 - `docs/design/launcher.md`
 
@@ -113,7 +124,7 @@ python -m launcher player --name Alice
 - `D:\Projects\wot-offline-battles` — 0.9.22 参考（只读）
 - `D:\WOT\World_of_Tanks_EU_Offline_2.3.1.2` — 游戏安装（部署脚本可写 res_mods）
 
-## 关键发现（M4 真机）
+## 关键发现（M4 真机 + M5 构建）
 
 1. **mod init 必须永不抛异常**，否则 `game.init` 整段失败退出。
 2. 游戏路径可能经 **junction**：`__file__` 可能缺 `res_mods\2.3.1.2`；bootstrap 需扫 `res_mods/<ver>` 并用 `import protocol` 校验。
@@ -124,6 +135,7 @@ python -m launcher player --name Alice
 7. `VVG_CLIENT_MODE=simulation_worker` → role=worker hello；握手后写 `VVG_WORKER_READY_MARKER`。
 8. starter 默认隐藏 worker；`--worker-only --show` 可见调试。
 9. 部署杂项：`mods` 下勿依赖 Py3 `__pycache__`；游戏只认 magic=62211 的 .pyc。
+10. **`src/` 只放源码**；`.pyd`/`.exe`/`.obj`/`.pyc` 一律进 `build/`（镜像 `src/`）。历史 `native/out/` 与 `dist/` 已废弃。
 
 ## 环境 / 联调速查
 
@@ -131,6 +143,7 @@ python -m launcher player --name Alice
 # 推荐（M5 launcher）
 cd D:\Projects\vvg-offline-battles
 $env:PYTHONPATH = "src"
+python -m launcher build              # native + pyc → build/
 python -m launcher deploy
 python -m launcher server            # 可选 --kill-port
 python -m launcher player --name Alice
@@ -165,7 +178,7 @@ python -m pytest tests/unit tests/integration -q
 ## 待用户确认
 
 1. ~~M0-M4~~ — 已完成（M4 真机通过）
-2. **M5 真机验证**：deploy → server → player 能否进车库并 join
+2. **M5 真机验证**：build → deploy → server → player 能否进车库并 join
 3. Bot AI 范围 / 单人模式 / 战斗模式 / 地图：M6 前最终确认
 
 ## 禁止事项提醒
@@ -176,3 +189,4 @@ python -m pytest tests/unit tests/integration -q
 - 禁止无证据编造 API/协议
 - 禁止大文件堆逻辑；必须测试 + 文档
 - 禁止客户端路径使用 Py3-only 语法
+- 禁止把构建产物写回 `src/`

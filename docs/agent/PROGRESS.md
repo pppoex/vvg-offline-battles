@@ -21,9 +21,9 @@
 | 8 | TASK-M2 | 协议与序列化 | 已完成 | src/protocol/**, tests/unit/test_protocol.py, test_serializer.py, docs/design/protocol.md | pytest 全绿 + Py2.7 编译 | 2ae17fe | 2026-09-12 |
 | 9 | TASK-M3 | sim-worker 权威服务器骨架 | 已完成 | src/sim_worker/**, tests/integration/test_server.py, docs/design/sim_worker.md | pytest 全绿（unit+integration） | de5dd79 | 2026-09-12 |
 | 10 | TASK-M4 | 薄客户端补丁 | 已完成 | src/client/vvg_client/**, mod_vvg_client.py, install_*.py, offline_entry, worker_starter, sim_worker 日志 | pytest 全绿 + 真机进车库 + player/worker join | b89dbf9…09aac72 | 2026-09-12 |
-| 11 | TASK-M5 | 命令行启动器与统一部署 | 已完成（代码+测试；真机一键待验） | src/launcher/**, src/deploy/install_all.py, tests/integration/test_launcher.py, docs/design/launcher.md | pytest 全绿 + CLI dry-run 冒烟 | （本轮） | 2026-09-12 |
-| 11b | TASK-M5.b | 构建产物统一 build/ + launcher build | 已完成 | build/multiclient/native/**, src/launcher/build.py, install_multiclient, build.ps1 | pytest 全绿 + 产物迁移验证 | （本轮） | 2026-09-13 |
-| 11c | TASK-M5.c | build 补 py→pyc（2.7 magic=62211） | 已完成 | src/launcher/bytecode.py, build.py, cli.py | pytest 全绿 + protocol/constants.pyc magic 校验 | （本轮） | 2026-09-13 |
+| 11 | TASK-M5 | 命令行启动器与统一部署 | 已完成（代码+测试；真机一键待验） | src/launcher/**, src/deploy/install_all.py, tests/integration/test_launcher.py, docs/design/launcher.md | pytest 全绿 + CLI dry-run 冒烟 | 8e4f0da | 2026-09-13 |
+| 11b | TASK-M5.b | 构建产物统一 build/ + launcher build | 已完成 | build/multiclient/native/**, src/launcher/build.py, install_multiclient, build.ps1 | pytest 全绿 + 产物迁移验证 | 6ff7ad5 | 2026-09-13 |
+| 11c | TASK-M5.c | build 补 py→pyc（2.7 magic=62211） | 已完成 | src/launcher/bytecode.py, build.py, cli.py | pytest 全绿 + protocol/constants.pyc magic 校验 | f08dceb | 2026-09-13 |
 
 ## 状态说明
 
@@ -41,7 +41,7 @@
 | M2: 协议与序列化 | ✅ **已完成** | protocol 包 + 能力协商 + 单测 + 文档 |
 | M3: sim-worker 服务器 | ✅ **已完成（骨架）** | TCP 握手 + 房间 + 30Hz tick + 15Hz 快照 |
 | M4: 薄客户端补丁 | ✅ **已完成 + 真机通过** | 进车库 + handshake + sim-worker join |
-| M5: 启动器与部署 | ✅ **代码完成** | deploy/server/player/worker 子命令；真机一键待用户验证 |
+| M5: 启动器与部署 | ✅ **代码完成 + 已推送** | build/deploy/server/player/worker；产物在 build/；真机一键待用户验证 |
 | M6: 基础同步 | ⬜ 未开始 | — |
 | M7: 战斗同步 | ⬜ 未开始 | — |
 | M8: 断线重连 | ⬜ 未开始 | — |
