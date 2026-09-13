@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Worker authority glue: enter Offline battle space and publish poses.
+"""Worker authority glue for the hidden simulation_worker game process.
 
-When the sim-worker starts a round, the hidden game worker receives
-``battle_start`` and (best-effort) enters the Offline battle space so terrain
-and models exist. Poses are then published as ``worker_pose`` proposals.
+0.9.22 model: the worker is NOT a player. It never enters an Offline
+single-player match. Shared battle state lives on sim-worker; this process
+only publishes authority poses. Visible clients load Offline space for
+local rendering only (LAN flags: no Offline private bots).
 
-Without BigWorld (host tests / CLI), battle entry is skipped and a static
-placeholder pose stream is sent so the protocol path stays exercised.
+M6 without Offline space on the worker: poses come from the room roster
+(stationary bots + player rows), not from Offline entities.
 """
 from __future__ import absolute_import, division, print_function
 
@@ -98,19 +99,24 @@ def apply_server_pose_to_local(client, session=None):
 
 
 def enter_offline_space(map_name, log_prefix=None, lan_player=False):
-    """Enter Offline battle space (player or worker). Returns True on success.
+    """Enter Offline battle space for the VISIBLE client only.
 
-    lan_player=True: load map for rendering only — no Offline private bots.
+    lan_player=True: map/terrain for rendering — no Offline private bots.
+    Worker must not call this (not a player).
     """
     prefix = log_prefix or LOG_PREFIX
+    if not lan_player:
+        sys.stdout.write(
+            '%s refusing Offline enter for non-player (worker must not '
+            'join Offline as player)\n' % prefix)
+        return False
     geometry = resolve_map_name(map_name)
     try:
         from gui.mods.offhangar2 import battle
     except Exception as exc:
         sys.stdout.write('%s battle module unavailable: %s\n' % (prefix, exc))
         return False
-    if lan_player:
-        _apply_lan_player_flags(prefix)
+    _apply_lan_player_flags(prefix)
     try:
         already = False
         if getattr(battle, 'isInBattle', None):
@@ -149,7 +155,7 @@ def _log(message):
 
 
 class WorkerAuthority(object):
-    """Tracks battle space entry and sends worker_pose at a fixed rate."""
+    """Publish room authority poses. Never enters Offline as a player."""
 
     def __init__(self, client, pose_hz=POSE_HZ):
         self.client = client
@@ -162,10 +168,11 @@ class WorkerAuthority(object):
     def on_battle_start(self, message):
         round_id = int(message.get('round_id') or 0)
         map_name = message.get('map') or getattr(self.client, 'map_name', None)
-        _log('battle_start round=%s map=%s' % (round_id, map_name))
+        _log('battle_start round=%s map=%s (no Offline player enter)' % (
+            round_id, map_name))
         self._last_round = round_id
         self.in_battle = True
-        self._enter_offline_space(map_name)
+        # Worker is not a player: do NOT battle.enter Offline match.
 
     def on_battle_live(self, message):
         if not self.in_battle:
@@ -173,10 +180,9 @@ class WorkerAuthority(object):
 
     def on_leave_or_waiting(self):
         if self.in_battle:
-            _log('leave battle space')
+            _log('leave battle authority (no Offline leave for worker)')
         self.in_battle = False
         self.space_entered = False
-        self._leave_offline_space()
 
     def pump(self, now=None):
         """Call from session.tick; sends pose if due and in battle."""
@@ -190,7 +196,7 @@ class WorkerAuthority(object):
         return self.send_pose(now)
 
     def collect_actors(self):
-        """Build worker_pose actor list from room roster + placeholder."""
+        """Build worker_pose actor list from room roster."""
         client = self.client
         round_id = int(getattr(client, 'round_id', 0) or 0)
         actors = []
@@ -198,17 +204,12 @@ class WorkerAuthority(object):
         rows = []
         if isinstance(roster, dict):
             rows = list(roster.get('players') or ())
-        # Local offline space sample (if any) for own avatar — not required
-        sample = self._sample_local_pose()
         for row in rows:
             actor_id = row.get('player_id') or row.get('id')
             if actor_id is None:
                 continue
-            if sample is not None and actor_id == getattr(client, 'player_id', None):
-                pos, yaw = sample
-            else:
-                pos = self._stable_pos(actor_id, row)
-                yaw = 0.0 if row.get('role') == 'bot' else 0.1 * (actor_id % 7)
+            pos = self._stable_pos(actor_id, row)
+            yaw = 0.0 if row.get('role') == 'bot' else 0.1 * (actor_id % 7)
             actors.append({
                 'id': int(actor_id),
                 'pos': pos,
@@ -243,41 +244,10 @@ class WorkerAuthority(object):
             _log('worker_pose send error: %s' % exc)
             return False
 
-    # --- Offline battle space (best-effort) ---------------------------------
-
-    def _resolve_map(self, map_name):
-        if not map_name:
-            return '06_ensk'
-        return _MAP_ALIASES.get(map_name, map_name)
-
-    def _enter_offline_space(self, map_name):
-        # Worker keeps Offline bots: this process is the authority world.
-        self.space_entered = enter_offline_space(
-            map_name, log_prefix=LOG_PREFIX, lan_player=False)
-        return self.space_entered
-
-    def _leave_offline_space(self):
-        leave_offline_space(log_prefix=LOG_PREFIX)
-
-    def _sample_local_pose(self):
-        """Optional: read avatar position from loaded Offline space."""
-        try:
-            import BigWorld
-            player = BigWorld.player()
-            entity = getattr(player, 'vehicle', None) or player
-            position = getattr(entity, 'position', None)
-            if position is None:
-                return None
-            yaw = float(getattr(entity, 'yaw', 0.0) or 0.0)
-            return ([float(position[0]), float(position[1]), float(position[2])],
-                    yaw)
-        except Exception:
-            return None
-
-    @staticmethod
-    def _stable_pos(actor_id, row):
-        """Deterministic placeholder position when no worker space sample."""
-        base_x = 100.0 if int(row.get('team') or 1) == 1 else -100.0
+    def _stable_pos(self, actor_id, row):
+        """Deterministic placeholder position for roster rows."""
+        team = int(row.get('team') or 1)
+        base_x = 100.0 if team == 1 else -100.0
         jitter = float(int(actor_id) % 9) * 6.0
         return [base_x + jitter, 0.0, float(int(actor_id) % 5) * 4.0]
 
@@ -289,14 +259,7 @@ def install_on_session(session):
         return None
     authority = WorkerAuthority(client)
     session.worker_authority = authority
-    original_start = session.start
-
-    def _start_and_watch(*args, **kwargs):
-        welcome = original_start(*args, **kwargs)
-        return welcome
-
-    session.start = _start_and_watch
-    _log('worker authority installed for player_id=%s' % getattr(client, 'player_id', None))
+    _log('worker authority installed (no Offline player enter)')
     return authority
 
 
