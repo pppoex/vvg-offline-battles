@@ -239,11 +239,15 @@ class StatusWebServer(object):
         port = self._port if self._port is not None else find_free_port(self.host)
         self._http = _ThreadedHTTP((self.host, port), Handler)
         self._port = self._http.server_address[1]
+        # Py2.7 Thread does not accept daemon= kwarg (log: unexpected keyword).
         self._thread = threading.Thread(
             target=self._http.serve_forever,
             kwargs={'poll_interval': 0.2},
-            name='vvg-webui',
-            daemon=True)
+            name='vvg-webui')
+        try:
+            self._thread.daemon = True
+        except Exception:
+            pass
         self._thread.start()
         _log('listening %s' % self.url)
         return self.url

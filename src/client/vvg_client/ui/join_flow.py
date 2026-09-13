@@ -76,6 +76,13 @@ def _get_session():
 def _hide_waiting():
     """Dismiss stock joining/waiting overlay after intercept."""
     try:
+        from .. import join_gate
+        join_gate.dismiss_joining_ui()
+        _log('dismiss_joining_ui via join_gate')
+        return True
+    except Exception as exc:
+        _log('dismiss via join_gate failed: %s' % exc)
+    try:
         from gui.Scaleform import Waiting
         hide = getattr(Waiting, 'hide', None)
         if callable(hide):

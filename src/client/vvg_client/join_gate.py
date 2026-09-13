@@ -55,11 +55,12 @@ def _intercepted_enqueue(requestID, args):
     arena_type_id = arr[3] if len(arr) > 3 else 0
     _log('intercepted CMD_ENQUEUE vehInvID=%s arenaTypeID=%s' % (
         veh_inv_id, arena_type_id))
-    hide_waiting_overlay()
+    dismiss_joining_ui()
     try:
         _respond_success(requestID)
     except Exception as exc:
         _log('respond failed: %s' % exc)
+    dismiss_joining_ui()
     _call_handler(veh_inv_id, arena_type_id)
 
 
@@ -82,7 +83,7 @@ def _respond_success(requestID):
 def _intercepted_enter_random(vehInvID=None, arenaTypeID=0, *args, **kwargs):
     _log('intercepted battle.enterRandom vehInvID=%s arenaTypeID=%s' % (
         vehInvID, arenaTypeID))
-    hide_waiting_overlay()
+    dismiss_joining_ui()
     _call_handler(vehInvID, arenaTypeID)
     return False
 
@@ -90,7 +91,7 @@ def _intercepted_enter_random(vehInvID=None, arenaTypeID=0, *args, **kwargs):
 def _wrapped_fight_click(header, map_id=None, action_name=None):
     """Earliest Battle! click — never fall through to stock joining screen."""
     _log('fightClick map_id=%s action=%s' % (map_id, action_name))
-    hide_waiting_overlay()
+    dismiss_joining_ui()
     veh = None
     arena = 0
     try:
@@ -142,6 +143,7 @@ def _resolve_lobby_header_type():
         'gui.Scaleform.daapi.view.lobby.header.LobbyHeader',
         'gui.Scaleform.daapi.view.lobby.header.lobby_header',
         'gui.Scaleform.daapi.view.meta.LobbyHeaderMeta',
+        'gui.Scaleform.daapi.view.lobby.header.header',
     )
     try:
         import importlib
@@ -155,27 +157,64 @@ def _resolve_lobby_header_type():
             except Exception as exc:
                 _log('import %s failed: %s' % (path, exc))
                 continue
-            for attr in ('LobbyHeader', 'LobbyHeaderMeta'):
+            for attr in ('LobbyHeader', 'LobbyHeaderMeta', 'Header'):
                 found = getattr(module, attr, None)
                 if isinstance(found, type):
                     return found
 
-    # After lobby load, the class may already be in sys.modules.
+    # After lobby load, scan already-imported modules for fightClick owner.
     try:
         import sys
         for name, module in list(sys.modules.items()):
             if module is None:
                 continue
-            if 'LobbyHeader' not in name and 'lobby.header' not in name:
-                continue
             for attr in ('LobbyHeader', 'LobbyHeaderMeta'):
                 found = getattr(module, attr, None)
                 if isinstance(found, type) and callable(
                         getattr(found, 'fightClick', None)):
+                    _log('found %s via sys.modules[%s]' % (attr, name))
                     return found
+            # The module itself may be the class (rare).
+            if isinstance(module, type) and callable(
+                    getattr(module, 'fightClick', None)):
+                _log('found fightClick on sys.modules type %s' % name)
+                return module
     except Exception:
         pass
     return None
+
+
+def exit_stock_queue():
+    """Dismiss stock random-queue joining UI (prb entity exitFromQueue)."""
+    try:
+        import BigWorld
+        from gui.prb_control.dispatcher import g_prbLoader
+    except Exception as exc:
+        _log('exit_stock_queue imports failed: %s' % exc)
+        return False
+    try:
+        dispatcher = g_prbLoader.getDispatcher()
+        if dispatcher is None:
+            _log('exit_stock_queue: no prb dispatcher')
+            return False
+        player = BigWorld.player()
+        in_queue = bool(getattr(player, 'isInRandomQueue', False))
+        entity = dispatcher.getEntity()
+        exit_from_queue = getattr(entity, 'exitFromQueue', None)
+        if not callable(exit_from_queue):
+            _log('exit_stock_queue: entity has no exitFromQueue')
+            return False
+        if in_queue:
+            exit_from_queue()
+            _log('exit_stock_queue: exitFromQueue called')
+            return True
+        # Still try once: some paths leave the screen without the flag.
+        exit_from_queue()
+        _log('exit_stock_queue: exitFromQueue called (flag was false)')
+        return True
+    except Exception as exc:
+        _log('exit_stock_queue failed: %s' % exc)
+        return False
 
 
 def hide_waiting_overlay():
@@ -187,11 +226,26 @@ def hide_waiting_overlay():
             try:
                 hide()
             except TypeError:
-                hide('join')
+                try:
+                    hide('join')
+                except Exception as exc2:
+                    _log('Waiting.hide(join) failed: %s' % exc2)
+                    return False
+            except Exception as exc:
+                _log('Waiting.hide failed: %s' % exc)
+                return False
+            _log('Waiting.hide() ok')
             return True
-    except Exception:
-        pass
+        _log('Waiting.hide not callable')
+    except Exception as exc:
+        _log('Waiting import/hide failed: %s' % exc)
     return False
+
+
+def dismiss_joining_ui():
+    """Best-effort close of every joining surface we know about."""
+    exit_stock_queue()
+    hide_waiting_overlay()
 
 
 def install():
@@ -297,6 +351,8 @@ __all__ = [
     'is_installed',
     'fight_button_installed',
     'hide_waiting_overlay',
+    'exit_stock_queue',
+    'dismiss_joining_ui',
     'set_handler',
     'handler',
 ]
