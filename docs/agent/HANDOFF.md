@@ -18,8 +18,8 @@
 
 ## 最后 commit
 
-- **hash**: `5c7dec1`
-- **message**: `docs(design): M6 联机架构确认与交接更新 [TASK-M6-DESIGN]`
+- **hash**: `9ac649c`
+- **message**: `feat(client): M6 join 拦截与本机 Web 状态页 [TASK-M6]`
 - **已推送**: `master` → `origin/main`
 
 M5 关键业务 commit：
