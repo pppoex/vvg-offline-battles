@@ -175,6 +175,7 @@ def test_join_gate_intercepts_enqueue(monkeypatch):
     join_gate._orig_enqueue = None
     join_gate._orig_enter_random = None
     join_gate._fight_button = None
+    join_gate._last_handler_at = 0.0
 
     fake_server = _FakeFakeServer()
     battle = _FakeBattle()
@@ -214,13 +215,14 @@ def test_join_gate_intercepts_enqueue(monkeypatch):
             7, [[0, 42, 0, 5]])
         assert seen == [(42, 5)]
         assert fake_server.responded and fake_server.responded[0][0] == 7
-        # enterRandom fallback
+        join_gate._last_handler_at = 0.0
         battle.enterRandom(vehInvID=9, arenaTypeID=2)
         assert seen[-1] == (9, 2)
         assert battle.calls == 0
     finally:
         join_gate.uninstall()
         join_gate.set_handler(None)
+        join_gate._last_handler_at = 0.0
         for name, mod in saved.items():
             if mod is None:
                 sys.modules.pop(name, None)
@@ -291,12 +293,14 @@ def test_join_flow_start_room_web():
 def test_join_gate_fight_click_wrapper():
     join_gate._fight_button = None
     join_gate._handler = None
+    join_gate._last_handler_at = 0.0
     seen = []
     join_gate.set_handler(lambda v, a: seen.append((v, a)))
     result = join_gate._wrapped_fight_click(None, map_id=5, action_name='random')
     assert result is None
     assert seen
     join_gate.set_handler(None)
+    join_gate._last_handler_at = 0.0
 
 
 def test_open_browser_windows_startfile(monkeypatch):
@@ -305,7 +309,30 @@ def test_open_browser_windows_startfile(monkeypatch):
     def fake_startfile(url):
         calls.append(url)
 
+    join_flow.stop_room_web()
     monkeypatch.setattr(os, 'name', 'nt', raising=False)
     monkeypatch.setattr(os, 'startfile', fake_startfile, raising=False)
     assert join_flow.open_browser('http://127.0.0.1:18080/') is True
+    assert join_flow.open_browser('http://127.0.0.1:18080/') is True
     assert calls == ['http://127.0.0.1:18080/']
+    join_flow.stop_room_web()
+
+
+def test_on_battle_clicked_debounced(monkeypatch):
+    opened = []
+
+    def fake_open(url):
+        opened.append(url)
+        return True
+
+    join_flow.stop_room_web()
+    join_flow._last_click_at = 0.0
+    join_flow._browser_opened = False
+    monkeypatch.setattr(join_flow, 'open_browser', fake_open)
+    monkeypatch.setattr(join_flow, '_ensure_session', lambda: None)
+    monkeypatch.setattr(join_flow, 'start_room_web', lambda s=None: 'http://127.0.0.1:18080/')
+    join_flow.on_battle_clicked(1, 0)
+    join_flow.on_battle_clicked(1, 0)
+    assert len(opened) == 1
+    join_flow.stop_room_web()
+    join_flow._last_click_at = 0.0

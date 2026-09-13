@@ -17,9 +17,12 @@ LOG_PREFIX = '[VVG join_flow] '
 _web = None
 _controller = None
 _retries = 0
-_MAX_RETRIES = 30
+_MAX_RETRIES = 8
 _browser_last_url = None
 _browser_ok = False
+_browser_opened = False
+_last_click_at = 0.0
+_CLICK_COOLDOWN_SEC = 8.0
 
 
 def _log(message):
@@ -28,6 +31,14 @@ def _log(message):
         sys.stdout.flush()
     except Exception:
         pass
+
+
+def _now():
+    try:
+        import time
+        return time.time()
+    except Exception:
+        return 0.0
 
 
 def _get_session():
@@ -133,10 +144,13 @@ def start_room_web(session=None):
 
 
 def open_browser(url):
-    """Open URL in the system browser. Game process often needs ShellExecute."""
-    global _browser_last_url, _browser_ok
+    """Open URL once. Repeated battle-click storms must not spawn windows."""
+    global _browser_last_url, _browser_ok, _browser_opened
     if not url:
         return False
+    if _browser_opened:
+        _log('browser already opened; skip duplicate (%s)' % url)
+        return True
     _browser_last_url = url
     _log('open_browser %s' % url)
 
@@ -145,6 +159,7 @@ def open_browser(url):
         if os.name == 'nt' and hasattr(os, 'startfile'):
             os.startfile(url)
             _browser_ok = True
+            _browser_opened = True
             _log('browser via os.startfile')
             return True
     except Exception as exc:
@@ -159,6 +174,7 @@ def open_browser(url):
                 close_fds=True,
                 shell=False)
             _browser_ok = True
+            _browser_opened = True
             _log('browser via cmd start')
             return True
     except Exception as exc:
@@ -169,6 +185,7 @@ def open_browser(url):
         import webbrowser
         opened = webbrowser.open(url)
         _browser_ok = bool(opened)
+        _browser_opened = bool(opened)
         _log('browser via webbrowser.open -> %s' % opened)
         return bool(opened)
     except Exception as exc:
@@ -179,18 +196,33 @@ def open_browser(url):
 
 
 def on_battle_clicked(veh_inv_id=None, arena_type_id=0):
-    """join_gate handler: open local room web instead of Offline battle."""
-    global _retries
+    """join_gate handler: open local room web instead of Offline battle.
+
+    Debounced: stock queue may re-fire CMD_ENQUEUE many times; each storm
+    must open at most one browser window.
+    """
+    global _retries, _last_click_at, _browser_opened, _browser_ok
+    now = _now()
+    if _last_click_at and (now - _last_click_at) < _CLICK_COOLDOWN_SEC:
+        _log('battle click ignored (cooldown)')
+        return _browser_last_url
+    _last_click_at = now
     _log('battle click vehInvID=%s arenaTypeID=%s' % (veh_inv_id, arena_type_id))
-    _hide_waiting()
+    try:
+        join_gate.dismiss_joining_ui()
+    except Exception as exc:
+        _log('dismiss failed: %s' % exc)
     try:
         session = _ensure_session()
         url = start_room_web(session)
         if url:
-            open_browser(url)
+            opened = open_browser(url)
+            if opened:
+                _browser_opened = True
+                _browser_ok = True
         else:
             _log('web url is None after start_room_web')
-            if session is None:
+            if session is None and _retries < _MAX_RETRIES:
                 _schedule_retry_install()
         return url
     except Exception as exc:
@@ -199,7 +231,7 @@ def on_battle_clicked(veh_inv_id=None, arena_type_id=0):
 
 
 def stop_room_web():
-    global _web, _controller
+    global _web, _controller, _browser_opened, _browser_ok, _last_click_at
     if _web is not None:
         try:
             _web.stop()
@@ -207,6 +239,9 @@ def stop_room_web():
             pass
     _web = None
     _controller = None
+    _browser_opened = False
+    _browser_ok = False
+    _last_click_at = 0.0
 
 
 def _schedule_retry_install():
@@ -214,6 +249,10 @@ def _schedule_retry_install():
     global _retries
     if _retries >= _MAX_RETRIES:
         return
+    # Once Offline CMD_ENQUEUE is patched, stop fighting LobbyHeader forever.
+    if join_gate.is_installed() and not join_gate.fight_button_installed():
+        if _retries >= 3:
+            return
     _retries += 1
 
     def _retry():
@@ -226,9 +265,12 @@ def _schedule_retry_install():
         except Exception as exc:
             _log('retry install failed: %s' % exc)
         if _retries < _MAX_RETRIES:
-            _arm_callback(2.0, _retry)
+            if join_gate.is_installed() and not join_gate.fight_button_installed():
+                if _retries >= 3:
+                    return
+            _arm_callback(3.0, _retry)
 
-    _arm_callback(2.0, _retry)
+    _arm_callback(3.0, _retry)
 
 
 def _arm_callback(delay, fn):

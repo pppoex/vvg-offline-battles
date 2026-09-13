@@ -9,6 +9,7 @@ Fallback hooks: Offline ``fake_server`` CMD_ENQUEUE and ``battle.enterRandom``.
 from __future__ import absolute_import, division, print_function
 
 import sys
+import time
 
 LOG_PREFIX = '[VVG join_gate] '
 
@@ -17,6 +18,8 @@ _handler = None
 _orig_enqueue = None
 _orig_enter_random = None
 _fight_button = None  # dict describing LobbyHeader patch state
+_last_handler_at = 0.0
+_HANDLER_COOLDOWN_SEC = 5.0
 
 
 def _log(message):
@@ -37,10 +40,16 @@ def handler():
 
 
 def _call_handler(veh_inv_id, arena_type_id):
+    global _last_handler_at
     if _handler is None:
         _log('join requested vehInvID=%s arenaTypeID=%s (no handler)' % (
             veh_inv_id, arena_type_id))
         return False
+    now = time.time()
+    if (now - _last_handler_at) < _HANDLER_COOLDOWN_SEC:
+        _log('handler cooldown; skip (vehInvID=%s)' % veh_inv_id)
+        return False
+    _last_handler_at = now
     try:
         _handler(veh_inv_id, arena_type_id)
         return True
