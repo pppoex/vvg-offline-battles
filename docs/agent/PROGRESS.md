@@ -29,7 +29,7 @@
 | 14 | TASK-M6.P3 | worker_pose 中继 + 原地 Bot + catalog_hash | 已完成 | protocol, sim_worker room/session/server, worker_authority, tests | pytest 全绿 + Py2.7 编译 | eeb68e7 | 2026-09-14 |
 | 15 | TASK-M6.P4 | RemoteScene + leave 回车库 + Web /leave | 已完成 | presentation/remote_scene, session, webui, join_flow, tests | pytest 全绿 + Py2.7 编译 | ce8f4e3 | 2026-09-14 |
 | 16 | TASK-M6.FIX | 最早 fightClick 拦截 + 浏览器 startfile | 已完成 | join_gate, join_flow, tests | pytest 全绿 + Py2.7 编译 | 35a0110 | 2026-09-14 |
-| 17 | TASK-M6.ROOM | 房间选图 + 自动结束检测 | 已完成 | protocol, room, server, client, webui, tests | pytest 全绿 + Py2.7 编译 | 待 commit | 2026-09-14 |
+| 17 | TASK-M6.ROOM | 房间选图 + 自动结束检测 | 已完成 | protocol, room, server, client, webui, tests | pytest 全绿 + Py2.7 编译 | 2cb65fb | 2026-09-14 |
 
 ## 状态说明
 
