@@ -255,7 +255,10 @@ class BattleClient(object):
                     enter_offline_space = None
             if enter_offline_space is not None:
                 try:
-                    enter_offline_space(self.map_name, log_prefix='[VVG player] ')
+                    enter_offline_space(
+                        self.map_name,
+                        log_prefix='[VVG player] ',
+                        lan_player=True)
                     self.send_battle_ready()
                 except Exception:
                     pass
@@ -280,7 +283,10 @@ class BattleClient(object):
                     enter_offline_space = None
             if enter_offline_space is not None:
                 try:
-                    enter_offline_space(self.map_name, log_prefix='[VVG player] ')
+                    enter_offline_space(
+                        self.map_name,
+                        log_prefix='[VVG player] ',
+                        lan_player=True)
                 except Exception:
                     pass
 

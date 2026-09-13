@@ -209,6 +209,13 @@ class ClientSession(object):
         if row is not None:
             self.local_player.on_authority_row(
                 row, server_time_ms=snapshot.get('server_time_ms'))
+            # LAN: drive Offline local vehicle from server pose when in battle.
+            try:
+                from .worker_authority import apply_server_pose_to_local
+                if self.client.phase == 'battle':
+                    apply_server_pose_to_local(self.client, session=self)
+            except Exception:
+                pass
             return True
         return False
 

@@ -31,8 +31,77 @@ def resolve_map_name(map_name):
     return _MAP_ALIASES.get(map_name, map_name)
 
 
-def enter_offline_space(map_name, log_prefix=None):
-    """Enter Offline battle space (player or worker). Returns True on success."""
+def _apply_lan_player_flags(prefix):
+    """Visible client: Offline must not run a private bot match.
+
+    Shared battle lives on the worker + sim-worker. Player Offline enter is
+    only for map/terrain rendering; Offline bots / auto-return would create
+    a second independent single-player game.
+    """
+    try:
+        from gui.mods.offhangar2 import config
+        config.BOTS_ENABLED = False
+        config.BATTLE_AUTO_RETURN = False
+        config.BATTLE_RESULTS = False
+        sys.stdout.write('%s Offline bots/auto-return/results disabled\n' % prefix)
+    except Exception as exc:
+        sys.stdout.write('%s lan flags failed: %s\n' % (prefix, exc))
+    try:
+        from gui.mods.offhangar2 import bots
+        original = getattr(bots, 'spawnAll', None)
+
+        def _no_spawn(*args, **kwargs):
+            sys.stdout.write('%s bots.spawnAll blocked (LAN)\n' % prefix)
+            return []
+
+        if callable(original):
+            bots.spawnAll = _no_spawn
+            sys.stdout.write('%s patched bots.spawnAll\n' % prefix)
+    except Exception as exc:
+        sys.stdout.write('%s bots patch failed: %s\n' % (prefix, exc))
+
+
+def apply_server_pose_to_local(client, session=None):
+    """Best-effort: snap local Offline vehicle to server authority pose."""
+    try:
+        import BigWorld
+    except Exception:
+        return False
+    player = BigWorld.player()
+    if player is None:
+        return False
+    row = None
+    if session is not None:
+        try:
+            row = session.client.snapshot_player_row(session.client.player_id)
+        except Exception:
+            row = None
+    if row is None:
+        try:
+            row = client.snapshot_player_row(client.player_id)
+        except Exception:
+            return False
+    if not isinstance(row, dict):
+        return False
+    pos = row.get('pos')
+    if not isinstance(pos, (list, tuple)) or len(pos) != 3:
+        return False
+    try:
+        target = getattr(player, 'vehicle', None) or player
+        target.position = (float(pos[0]), float(pos[1]), float(pos[2]))
+        if row.get('yaw') is not None and hasattr(target, 'yaw'):
+            target.yaw = float(row['yaw'])
+        return True
+    except Exception as exc:
+        sys.stdout.write('[VVG player] apply pose failed: %s\n' % exc)
+        return False
+
+
+def enter_offline_space(map_name, log_prefix=None, lan_player=False):
+    """Enter Offline battle space (player or worker). Returns True on success.
+
+    lan_player=True: load map for rendering only — no Offline private bots.
+    """
     prefix = log_prefix or LOG_PREFIX
     geometry = resolve_map_name(map_name)
     try:
@@ -40,6 +109,8 @@ def enter_offline_space(map_name, log_prefix=None):
     except Exception as exc:
         sys.stdout.write('%s battle module unavailable: %s\n' % (prefix, exc))
         return False
+    if lan_player:
+        _apply_lan_player_flags(prefix)
     try:
         already = False
         if getattr(battle, 'isInBattle', None):
@@ -48,8 +119,8 @@ def enter_offline_space(map_name, log_prefix=None):
             sys.stdout.write('%s already in battle; skip enter\n' % prefix)
             return True
         result = battle.enter(geometry)
-        sys.stdout.write('%s battle.enter(%r) -> %s\n' % (
-            prefix, geometry, result))
+        sys.stdout.write('%s battle.enter(%r) lan_player=%s -> %s\n' % (
+            prefix, geometry, bool(lan_player), result))
         return bool(result)
     except Exception as exc:
         sys.stdout.write('%s battle.enter failed: %s\n' % (prefix, exc))
@@ -180,8 +251,9 @@ class WorkerAuthority(object):
         return _MAP_ALIASES.get(map_name, map_name)
 
     def _enter_offline_space(self, map_name):
+        # Worker keeps Offline bots: this process is the authority world.
         self.space_entered = enter_offline_space(
-            map_name, log_prefix=LOG_PREFIX)
+            map_name, log_prefix=LOG_PREFIX, lan_player=False)
         return self.space_entered
 
     def _leave_offline_space(self):
@@ -234,4 +306,5 @@ __all__ = [
     'enter_offline_space',
     'leave_offline_space',
     'resolve_map_name',
+    'apply_server_pose_to_local',
 ]
