@@ -5,8 +5,13 @@ __pycache__/
 *.so
 *.egg-info/
 dist/
-build/
 *.egg
+
+# Build artifacts — everything under build/ (mirrors src/ layout)
+build/
+*.obj
+*.exp
+*.lib
 
 # Virtual environments
 .venv/
@@ -41,12 +46,6 @@ htmlcov/
 *.pak
 *.pkg
 *.wgpdc
-
-# Build artifacts (native)
-src/multiclient/native/out/
-*.obj
-*.exp
-*.lib
 
 # Large binaries
 assets/*.bin

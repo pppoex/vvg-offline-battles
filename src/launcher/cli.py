@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 
+from launcher import build as buildmod
 from launcher import client as clientmod
 from launcher import env as envmod
 from launcher import paths as pathmod
@@ -62,8 +63,24 @@ def build_parser():
     parser = argparse.ArgumentParser(
         prog='launcher',
         description='vvg-offline-battles command-line launcher '
-                    '(deploy / sim-worker / player / worker)')
+                    '(build / deploy / sim-worker / player / worker)')
     sub = parser.add_subparsers(dest='command')
+
+    p_build = sub.add_parser(
+        'build',
+        help='build native artifacts into build/ (mirrors src/ layout)')
+    p_build.add_argument(
+        '--only', choices=tuple(buildmod.COMPONENTS),
+        help='build only one component')
+    p_build.add_argument(
+        '--skip', choices=tuple(buildmod.COMPONENTS),
+        help='skip one component')
+    p_build.add_argument(
+        '--clean', action='store_true',
+        help='delete previous build outputs before building')
+    p_build.add_argument(
+        '--workspace', default=None,
+        help='workspace root containing src/ (default: auto-detect)')
 
     p_deploy = sub.add_parser(
         'deploy', help='install multiclient + thin client + offhangar')
@@ -108,6 +125,15 @@ def build_parser():
         help='hidden desktop worker (starter default)')
 
     return parser
+
+
+def cmd_build(args):
+    return buildmod.build_all(
+        only=args.only,
+        skip=args.skip,
+        clean=args.clean,
+        workspace=args.workspace or pathmod.workspace_root(),
+    )
 
 
 def cmd_deploy(args):
@@ -177,6 +203,8 @@ def main(argv=None):
     if not getattr(args, 'command', None):
         parser.print_help()
         return 1
+    if args.command == 'build':
+        return cmd_build(args)
     if args.command == 'deploy':
         return cmd_deploy(args)
     if args.command == 'server':

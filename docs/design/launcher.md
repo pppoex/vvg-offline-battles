@@ -1,11 +1,12 @@
 # 命令行启动器设计（M5）
 
-> Python 3 · 不在游戏内加载 · 默认端口 28782
+> Python 3 · 不在游戏内加载 · 默认端口 28782 · 产物在 `build/`（镜像 `src/`）
 
 ## 1. 目标
 
 提供统一的用户入口，替代「手敲三条 deploy + 手起 sim-worker + 手起 starter」的碎片流程：
 
+- **build**：一键编译 native 产物到 `build/multiclient/native/`
 - **deploy**：一键串联部署 multiclient / thin client / offhangar
 - **server**：只启动权威 sim-worker
 - **player**：只启动一个 player 游戏客户端
@@ -14,21 +15,41 @@
 单人也走同一路径（DECISIONS：不保留单机模式；单人也连本地 sim-worker）。
 server / player / worker **彼此独立**，由用户按需在多个终端打开。
 
-## 2. 模块
+## 2. 目录约定
+
+| 路径 | 含义 |
+|---|---|
+| `src/**` | **仅源代码**（`.c` / `.py` / `.ps1`），无 `.pyd`/`.exe`/`.obj` |
+| `build/**` | **全部构建产物**，镜像 `src/` 子树 |
+| `build/multiclient/native/` | 对应 `src/multiclient/native/` 的编译输出 |
+
+当前产物：
+
+```
+build/multiclient/native/vvg_instance_guard_native.pyd
+build/multiclient/native/vvg_worker_starter.exe
+```
+
+历史路径 `src/multiclient/native/out/` 与 `dist/` **已废弃**；`install_multiclient` 只从 `build/`（或已部署的游戏目录）取 native。
+
+## 3. 模块
 
 | 路径 | 职责 |
 |---|---|
 | `src/launcher/cli.py` | argparse 子命令入口 |
-| `src/launcher/paths.py` | 工作区根 / 游戏根 / starter 路径 |
+| `src/launcher/build.py` | 调用 native `build.ps1`，清理 / 校验产物 |
+| `src/launcher/paths.py` | 工作区根 / 游戏根 / starter / `build/` 路径 |
 | `src/launcher/env.py` | 组装 `VVG_*` 环境变量 |
 | `src/launcher/ports.py` | 端口占用检测；可选 kill 本地监听 |
 | `src/launcher/server.py` | 起停 sim-worker，等端口就绪 |
 | `src/launcher/client.py` | 经 `vvg_worker_starter.exe` 拉起 player/worker |
+| `src/multiclient/native/build.ps1` | MSVC x64 编译（输出到 `build/`） |
 | `src/deploy/install_all.py` | 串联三个 install 脚本（薄壳） |
 
 入口：
 
 ```powershell
+python -m launcher build
 python -m launcher deploy
 python -m launcher server
 python -m launcher player
@@ -37,9 +58,21 @@ python -m launcher worker
 
 （等价：`python src/launcher/cli.py …`；`pythonpath` 需含 `src`。）
 
-## 3. 子命令
+## 4. 子命令
 
-### 3.1 deploy
+### 4.1 build
+
+```
+python -m launcher build [--only native] [--skip native]
+                         [--clean] [--workspace PATH]
+```
+
+1. 确保 `build/multiclient/native/` 存在
+2. 运行 `src/multiclient/native/build.ps1`（VS Build Tools x64）
+3. 校验 `.pyd` / `.exe` 是否写出
+4. `--clean`：先删除 `build/multiclient/native/` 再编
+
+### 4.2 deploy
 
 ```
 python -m launcher deploy [--game-root PATH] [--python27 PATH]
@@ -50,13 +83,13 @@ python -m launcher deploy [--game-root PATH] [--python27 PATH]
 
 顺序执行（可被 only/skip 收窄）：
 
-1. `install_multiclient` — 守卫 + starter
+1. `install_multiclient` — 守卫 + starter（native 从 `build/` 取）
 2. `install_client` — 薄客户端 + protocol/sdk vendor
 3. `install_offhangar` — Offline 车库入口
 
 任一组件失败 → 退出码 1。
 
-### 3.2 server
+### 4.3 server
 
 ```
 python -m launcher server [--host H] [--port P] [--map NAME]
@@ -68,7 +101,7 @@ python -m launcher server [--host H] [--port P] [--map NAME]
 3. 子进程 `python -m sim_worker.main`（`PYTHONPATH=工作区/src`）
 4. 轮询至端口就绪；前台阻塞，Ctrl+C → terminate 子进程
 
-### 3.3 player
+### 4.4 player
 
 ```
 python -m launcher player [--name N] [--vehicle V]
@@ -91,7 +124,7 @@ python -m launcher player [--name N] [--vehicle V]
 
 拉起后 launcher 退出；游戏进程独立存活。
 
-### 3.4 worker
+### 4.5 worker
 
 ```
 python -m launcher worker [--show|--hide] [--host H] [--port P]
@@ -103,7 +136,7 @@ python -m launcher worker [--show|--hide] [--host H] [--port P]
 - `--hide` → `--worker-only --hide`
 - `VVG_CLIENT_MODE=simulation_worker`
 
-## 4. 环境变量一览
+## 5. 环境变量一览
 
 | 变量 | 写入方 | 读取方 |
 |---|---|---|
@@ -114,11 +147,13 @@ python -m launcher worker [--show|--hide] [--host H] [--port P]
 | `VVG_GAME_ROOT` | 用户可选 | launcher paths.game_root |
 | `VVG_WORKER_READY_MARKER` | starter | client bootstrap（worker 握手后写标记） |
 
-## 5. 典型联调流程
+## 6. 典型联调流程
 
 ```powershell
-# 0) 一次性部署
+# 0) 一次性：编译 native + 部署
 cd D:\Projects\vvg-offline-battles
+$env:PYTHONPATH = "src"
+python -m launcher build
 python -m launcher deploy
 
 # 1) 终端 A：权威服（残留旧进程时加 --kill-port）
@@ -131,18 +166,19 @@ python -m launcher player --name Alice
 python -m launcher worker --show
 ```
 
-## 6. 测试
+## 7. 测试
 
 ```powershell
 python -m pytest tests/integration/test_launcher.py -q
 python -m pytest tests/unit tests/integration -q
 ```
 
-覆盖：env 组装、starter argv、端口占用拒绝、sim-worker 子进程 bind、CLI 解析、install_all 组件选择与 dry-run。
+覆盖：env 组装、starter argv、端口占用拒绝、sim-worker 子进程 bind、CLI 解析、build 路径约定、install_all 组件选择与 dry-run。
 
-## 7. 刻意不做（边界）
+## 8. 刻意不做（边界）
 
 - 不做「一键同时起 server+player」的捆绑（用户明确要求独立控制）
 - 不自动 kill 端口（除非 `--kill-port`）
 - 不在 launcher 内重写 deploy 逻辑（只薄壳调用 install_*）
+- 不把 `.pyd`/`.exe`/`.obj` 写回 `src/`
 - 不做 GUI；不修改游戏 exe/dll/pkg

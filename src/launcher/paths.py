@@ -46,6 +46,16 @@ def sim_worker_src(root=None):
     return os.path.join(root, 'src')
 
 
+def build_root(root=None):
+    """Workspace build/ directory — all compiled artifacts live under here."""
+    return os.path.join(root or workspace_root(), 'build')
+
+
+def native_artifact_dir(root=None):
+    """build/multiclient/native — mirrors src/multiclient/native layout."""
+    return os.path.join(build_root(root), 'multiclient', 'native')
+
+
 def ensure_dir(path):
     if not os.path.isdir(path):
         os.makedirs(path)

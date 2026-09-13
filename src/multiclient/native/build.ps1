@@ -1,11 +1,12 @@
 # Build x64 native multiclient artifacts for WoT 2.3.1.2.
-# Outputs under native/out/ and dist/multiclient/.
+# Sources live in src/multiclient/native/; outputs go to build/multiclient/native/.
+# Mirrors the src/ tree under build/ so install scripts can find artifacts.
 
 $ErrorActionPreference = 'Stop'
 
 $NativeDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root = [System.IO.Path]::GetFullPath((Join-Path $NativeDir '..\..\..'))
-$OutDir = Join-Path $NativeDir 'out'
+$OutDir = Join-Path $Root 'build\multiclient\native'
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
 $VsDevCmd = 'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat'
@@ -26,8 +27,8 @@ call "%VSDEVCMD%" -arch=amd64 -host_arch=amd64 >nul
 if errorlevel 1 exit /b 10
 
 set OUTDIR=%~dp0
-set SRC=%~dp0..\instance_guard.c
-set STARTER=%~dp0..\worker_starter.c
+set SRC=%SRC_GUARD%
+set STARTER=%SRC_STARTER%
 set MSVCDIR=C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.51.36231
 set SDKDIR=C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0
 set SDKLIB=C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0
@@ -63,8 +64,10 @@ if errorlevel 1 exit /b 12
 exit /b 0
 '@
 
-# VSDEVCMD must expand inside the bat, not PowerShell.
+# Expand placeholders; VSDEVCMD / sources must expand inside the bat, not PS.
 $batchBody = $batchBody.Replace('%VSDEVCMD%', $VsDevCmd)
+$batchBody = $batchBody.Replace('%SRC_GUARD%', $guardSrc)
+$batchBody = $batchBody.Replace('%SRC_STARTER%', $starterSrc)
 Set-Content -Path $batch -Value $batchBody -Encoding ASCII
 
 Write-Host "Running $batch"
@@ -80,12 +83,6 @@ if (-not (Test-Path $starterOut)) {
     throw "missing $starterOut"
 }
 
-$dropDir = Join-Path $Root 'dist\multiclient'
-New-Item -ItemType Directory -Force -Path $dropDir | Out-Null
-Copy-Item -Force $guardOut (Join-Path $dropDir 'vvg_instance_guard_native.pyd')
-Copy-Item -Force $starterOut (Join-Path $dropDir 'vvg_worker_starter.exe')
-
-Write-Host "Built:"
+Write-Host "Built under build/multiclient/native/:"
 Write-Host "  $guardOut"
 Write-Host "  $starterOut"
-Write-Host "  $dropDir"

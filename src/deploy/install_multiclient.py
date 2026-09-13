@@ -43,7 +43,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 CLIENT_SRC = os.path.join(ROOT, 'src', 'client')
 MULTICLIENT_SRC = os.path.join(ROOT, 'src', 'multiclient')
-DIST = os.path.join(ROOT, 'dist', 'multiclient')
+# Artifacts mirror src/ under build/ (never written into src/).
+BUILD_NATIVE = os.path.join(ROOT, 'build', 'multiclient', 'native')
 
 DEFAULT_GAME_ROOT = os.path.normpath(
     r'D:\WOT\World_of_Tanks_EU_Offline_2.3.1.2')
@@ -186,8 +187,7 @@ def install(game_root, dry_run=False, python27=None):
 
     native_src = None
     for candidate in (
-            os.path.join(DIST, NATIVE_NAME),
-            os.path.join(MULTICLIENT_SRC, 'native', 'out', NATIVE_NAME),
+            os.path.join(BUILD_NATIVE, NATIVE_NAME),
             os.path.join(game_root, 'win64', NATIVE_NAME),
             os.path.join(game_root, MODS_REL, NATIVE_NAME),
     ):
@@ -196,8 +196,7 @@ def install(game_root, dry_run=False, python27=None):
             break
     starter_src = None
     for candidate in (
-            os.path.join(DIST, STARTER_NAME),
-            os.path.join(MULTICLIENT_SRC, 'native', 'out', STARTER_NAME),
+            os.path.join(BUILD_NATIVE, STARTER_NAME),
             os.path.join(game_root, 'win64', STARTER_NAME),
     ):
         if os.path.isfile(candidate):
@@ -249,8 +248,8 @@ def install(game_root, dry_run=False, python27=None):
         _copy_file(src, dst, label)
 
     if native_src is None:
-        _log('WARNING: native pyd not found in dist/ — build with '
-             'src/multiclient/native/build.ps1 then re-run this script')
+        _log('WARNING: native pyd not found under build/multiclient/native/'
+             ' — run `python -m launcher build` then re-run this script')
     else:
         _log('native bridge source: %s' % native_src)
 

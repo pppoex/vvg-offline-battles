@@ -11,6 +11,7 @@ import time
 import pytest
 
 # src/ is already on pytest pythonpath via pyproject.
+from launcher import build as buildmod
 from launcher import client as clientmod
 from launcher import cli as clicmd
 from launcher import env as envmod
@@ -224,7 +225,7 @@ def test_cli_no_command_prints_help(capsys):
     code = clicmd.main([])
     assert code == 1
     out = capsys.readouterr().out
-    assert 'deploy' in out and 'server' in out
+    assert 'build' in out and 'deploy' in out and 'server' in out
 
 
 def test_cli_parser_subcommands():
@@ -251,6 +252,68 @@ def test_cli_parser_subcommands():
     assert args.command == 'deploy'
     assert args.only == 'client'
     assert args.dry_run is True
+
+    args = parser.parse_args(['build', '--only', 'native', '--clean'])
+    assert args.command == 'build'
+    assert args.only == 'native'
+    assert args.clean is True
+
+
+# ---------------------------------------------------------------------------
+# build layout (artifacts under build/, sources under src/)
+# ---------------------------------------------------------------------------
+
+def test_build_paths_mirror_src():
+    root = pathmod.workspace_root()
+    assert pathmod.build_root(root) == os.path.join(root, 'build')
+    assert pathmod.native_artifact_dir(root) == os.path.join(
+        root, 'build', 'multiclient', 'native')
+    assert buildmod.native_out_dir(root) == os.path.join(
+        root, 'build', 'multiclient', 'native')
+
+
+def test_build_select_components():
+    assert buildmod.select_components() == list(buildmod.COMPONENTS)
+    assert buildmod.select_components(only='native') == ['native']
+    with pytest.raises(SystemExit):
+        buildmod.select_components(only='native', skip='native')
+    with pytest.raises(SystemExit):
+        buildmod.select_components(only='nope')
+
+
+def test_native_sources_only_under_src():
+    """No compiled artifacts may remain under src/."""
+    root = pathmod.workspace_root()
+    native = os.path.join(root, 'src', 'multiclient', 'native')
+    assert os.path.isfile(os.path.join(native, 'instance_guard.c'))
+    assert os.path.isfile(os.path.join(native, 'worker_starter.c'))
+    assert os.path.isfile(os.path.join(native, 'build.ps1'))
+    assert not os.path.isdir(os.path.join(native, 'out'))
+    for dirpath, _dirs, files in os.walk(
+            os.path.join(root, 'src', 'multiclient', 'native')):
+        for name in files:
+            assert not name.endswith(('.pyd', '.exe', '.obj', '.dll'))
+
+
+def test_installed_native_from_build_if_present():
+    """install_multiclient must prefer build/multiclient/native/."""
+    import install_multiclient
+    assert install_multiclient.BUILD_NATIVE.endswith(
+        os.path.join('build', 'multiclient', 'native'))
+    # When artifacts are present in build/, install dry-run should plan them.
+    out = install_multiclient.BUILD_NATIVE
+    if os.path.isfile(os.path.join(out, install_multiclient.NATIVE_NAME)):
+        planned = install_multiclient.install(
+            install_multiclient.DEFAULT_GAME_ROOT, dry_run=True)
+        labels = [row[2] for row in planned]
+        assert any('native pyd' in lab for lab in labels)
+        sources = [row[0] for row in planned if 'native pyd' in row[2]]
+        assert all(
+            s.replace('/', '\\').startswith(
+                os.path.join(out).replace('/', '\\'))
+            or 'win64' in s.replace('/', '\\')
+            or 'mods' in s.replace('/', '\\')
+            for s in sources)
 
 
 # ---------------------------------------------------------------------------

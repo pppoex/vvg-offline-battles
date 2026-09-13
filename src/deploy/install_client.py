@@ -26,7 +26,8 @@ ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 CLIENT_SRC = os.path.join(ROOT, 'src', 'client')
 PROTOCOL_SRC = os.path.join(ROOT, 'src', 'protocol')
 SDK_SRC = os.path.join(ROOT, 'src', 'sdk')
-DIST = os.path.join(ROOT, 'dist', 'thin_client')
+# Optional staging under build/ (mirrors src layout); install writes straight to game res_mods.
+BUILD_THIN_CLIENT = os.path.join(ROOT, 'build', 'client')
 
 DEFAULT_GAME_ROOT = os.path.normpath(
     r'D:\WOT\World_of_Tanks_EU_Offline_2.3.1.2')
