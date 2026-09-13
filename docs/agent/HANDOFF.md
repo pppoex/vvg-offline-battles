@@ -17,8 +17,8 @@
 
 ## 最后 commit
 
-- **hash**: `eeb68e7`
-- **message**: `feat(sim_worker): worker pose 中继与原地 Bot [TASK-M6]`
+- **hash**: `ce8f4e3`
+- **message**: `feat(client): 远端场景呈现与 leave 回车库 [TASK-M6]`
 - **已推送**: `master` → `origin/main`
 
 M5 关键业务 commit：
