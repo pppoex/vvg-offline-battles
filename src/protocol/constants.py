@@ -54,6 +54,8 @@ MSG_PING = 'ping'
 MSG_WORKER_POSE = 'worker_pose'
 # host → 服务器：设置房间地图（waiting 相位）
 MSG_SELECT_MAP = 'select_map'
+# worker → 服务器：已进入 Offline 战斗空间（先于玩家）
+MSG_WORKER_ENTERED = 'worker_entered'
 
 # 服务器 → 客户端
 MSG_WELCOME = 'welcome'
@@ -81,6 +83,7 @@ CLIENT_TO_SERVER_TYPES = frozenset((
     MSG_PING,
     MSG_WORKER_POSE,
     MSG_SELECT_MAP,
+    MSG_WORKER_ENTERED,
 ))
 
 SERVER_TO_CLIENT_TYPES = frozenset((

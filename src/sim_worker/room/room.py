@@ -61,6 +61,8 @@ class Room(object):
         self.battle_duration_seconds = 0.0
         self.last_end_reason = None
         self.last_end_round_id = 0
+        self.worker_entered_round_id = 0
+        self.players_entered = False
 
     # --- 成员 ---------------------------------------------------------------
 
@@ -237,6 +239,8 @@ class Room(object):
             session.pose['yaw'] = spawn['yaw']
         self._bots.clear()
         self._spawn_stationary_bots()
+        self.worker_entered_round_id = 0
+        self.players_entered = False
         self._bump_revision()
         start = build_battle_start(
             self.round_id, self.map_name, state_revision=self.state_revision)
@@ -250,6 +254,23 @@ class Room(object):
             timing={'prebattle': 0.0, 'duration': duration},
         )
         return True, {'battle_start': start, 'battle_live': live}
+
+    def mark_worker_entered(self, round_id):
+        """Worker 已进入 Offline 空间。返回是否首次标记本回合。"""
+        if self.phase != PHASE_BATTLE:
+            return False
+        if int(round_id or 0) != self.round_id:
+            return False
+        first = self.worker_entered_round_id != self.round_id
+        self.worker_entered_round_id = self.round_id
+        if first:
+            self._bump_revision()
+        return first
+
+    def worker_in_round(self, round_id):
+        return (self.phase == PHASE_BATTLE
+                and self.worker_entered_round_id == self.round_id
+                and int(round_id or 0) == self.round_id)
 
     def _spawn_stationary_bots(self):
         count = max(0, int(self.stationary_bots))
@@ -295,6 +316,8 @@ class Room(object):
         self._bots.clear()
         self.battle_started_at = 0.0
         self.battle_duration_seconds = 0.0
+        self.worker_entered_round_id = 0
+        self.players_entered = False
         if reason is not None:
             self.last_end_reason = reason
             self.last_end_round_id = self.round_id

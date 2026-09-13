@@ -206,6 +206,7 @@ python -m launcher player --name Bob
 | Phase4 呈现/离开 | ✅ 代码 | RemoteScene；leave；Web 连接/选图/自动结束 |
 | 房间完善 | ✅ 代码 | select_map；时限/无人自动结束；Web 选图 |
 | 真机验收 | ⬜ | 需 launcher build/deploy 后双端联调 |
+| Worker 先进局 | ✅ 代码 | worker_entered 后再拉玩家进同一回合；worker_pose 日志 5s 限流 |
 | 完整 0.9.22 呈现 | 后置 | 私有 worker 空间 + 远端 Vehicle 绑定 |
 
 ## 11. 风险

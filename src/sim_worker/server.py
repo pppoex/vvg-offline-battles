@@ -31,6 +31,7 @@ from protocol.constants import (
     MSG_START_BATTLE,
     MSG_SELECT_MAP,
     MSG_WORKER_POSE,
+    MSG_WORKER_ENTERED,
     PHASE_BATTLE,
     PHASE_WAITING,
     ROLE_PLAYER,
@@ -560,6 +561,8 @@ class GameServer(object):
             return self._handle_input(session, message)
         if kind == MSG_WORKER_POSE:
             return self._handle_worker_pose(session, message)
+        if kind == MSG_WORKER_ENTERED:
+            return self._handle_worker_entered(session, message)
         return True
 
     def _handle_leave_battle(self, session, message):
@@ -589,19 +592,80 @@ class GameServer(object):
                 live = result['battle_live']
                 events = {'battle_start': start, 'battle_live': live}
                 denied = None
+            worker = self.world.worker_session if ok else None
+            worker_connected = bool(
+                worker is not None and getattr(worker, 'connected', False))
         if not ok:
             session.send(denied)
             _log('start_battle denied for player_id=%s reason=%s' % (
                 session.player_id, result))
             return True
-        # 屏障消息按序广播给全员
-        self.world.broadcast(events['battle_start'])
-        self.world.broadcast(events['battle_live'])
+        if worker_connected:
+            # Worker enters first; players get battle_start after worker_entered.
+            worker.send(events['battle_start'])
+            worker.send(events['battle_live'])
+            _log('battle started round_id=%s map=%s; waiting for worker to enter'
+                 % (events['battle_start'].get('round_id'),
+                    events['battle_start'].get('map')))
+        else:
+            self.world.broadcast(events['battle_start'])
+            self.world.broadcast(events['battle_live'])
+            _log('battle started round_id=%s map=%s by player_id=%s (no worker)'
+                 % (events['battle_start'].get('round_id'),
+                    events['battle_start'].get('map'),
+                    session.player_id))
         self.broadcast_roster()
-        _log('battle started round_id=%s map=%s by player_id=%s' % (
-            events['battle_start'].get('round_id'),
-            events['battle_start'].get('map'),
-            session.player_id))
+        return True
+
+    def _handle_worker_entered(self, session, message):
+        if session.role != ROLE_WORKER and session is not self.world.worker_session:
+            return True
+        round_id = message.get('round_id')
+        map_name = message.get('map')
+        first = False
+        with self.world.lock:
+            first = self.world.room.mark_worker_entered(round_id)
+        if not first:
+            return True
+        _log('worker entered Offline space round=%s map=%s; pulling players in'
+             % (round_id, map_name))
+        with self.world.lock:
+            from protocol.messages import build_battle_live, build_battle_start
+            start = build_battle_start(
+                self.world.room.round_id,
+                self.world.room.map_name,
+                state_revision=self.world.room.state_revision)
+            live = build_battle_live(
+                self.world.room.round_id,
+                server_tick=0,
+                state_revision=self.world.room.state_revision,
+                server_time_ms=self._now_ms(),
+                countdown_seconds=0.0,
+                battle_duration_seconds=self.world.room.battle_duration_seconds,
+            )
+        for sess in self.world.all_sessions():
+            if getattr(sess, 'role', 'player') == ROLE_PLAYER:
+                sess.send(start)
+                sess.send(live)
+        self.broadcast_roster()
+        return True
+
+    def _handle_worker_pose(self, session, message):
+        if session.role != ROLE_WORKER and session is not self.world.worker_session:
+            _log('worker_pose rejected from player_id=%s' % session.player_id)
+            return True
+        actors = message.get('actors') or ()
+        with self.world.lock:
+            applied = self.world.room.apply_worker_pose(
+                message.get('round_id'), actors)
+        # Throttle: log once per few seconds, not every pose frame.
+        if applied:
+            now = time.time()
+            last = getattr(self, '_worker_pose_log_at', 0.0)
+            if now - last >= 5.0:
+                self._worker_pose_log_at = now
+                _log('worker_pose applied=%s round=%s (throttled)' % (
+                    applied, message.get('round_id')))
         return True
 
     def _handle_select_map(self, session, message):
@@ -669,19 +733,6 @@ class GameServer(object):
     def _handle_input(self, session, message):
         with self.world.lock:
             self.world.room.apply_input(session.player_id, message)
-        return True
-
-    def _handle_worker_pose(self, session, message):
-        if session.role != ROLE_WORKER and session is not self.world.worker_session:
-            _log('worker_pose rejected from player_id=%s' % session.player_id)
-            return True
-        actors = message.get('actors') or ()
-        with self.world.lock:
-            applied = self.world.room.apply_worker_pose(
-                message.get('round_id'), actors)
-        if applied:
-            _log('worker_pose applied=%s round=%s' % (
-                applied, message.get('round_id')))
         return True
 
     @staticmethod

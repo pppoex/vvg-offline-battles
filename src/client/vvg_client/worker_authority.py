@@ -14,7 +14,7 @@ from __future__ import absolute_import, division, print_function
 import sys
 import time
 
-from protocol.messages import build_worker_pose
+from protocol.messages import build_worker_entered, build_worker_pose
 
 LOG_PREFIX = '[VVG worker_auth] '
 
@@ -171,17 +171,23 @@ class WorkerAuthority(object):
     def on_battle_start(self, message):
         round_id = int(message.get('round_id') or 0)
         map_name = message.get('map') or getattr(self.client, 'map_name', None)
-        _log('battle_start round=%s map=%s (worker observe enter)' % (
+        _log('battle_start round=%s map=%s (worker enter first)' % (
             round_id, map_name))
         self._last_round = round_id
         self.in_battle = True
-        # Enter Offline map for observation / authority space. Not a room
-        # player (roster already excludes role=worker). Offline bots off.
+        # Worker enters Offline map FIRST, then notifies server to pull players.
         self.space_entered = enter_offline_space(
             map_name,
             log_prefix=LOG_PREFIX,
             worker_observe=True,
         )
+        if self.space_entered:
+            try:
+                self.client.send_message(
+                    build_worker_entered(round_id, map_name=map_name))
+                _log('sent worker_entered round=%s' % round_id)
+            except Exception as exc:
+                _log('send worker_entered failed: %s' % exc)
 
     def on_battle_live(self, message):
         if not self.in_battle:

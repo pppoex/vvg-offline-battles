@@ -311,6 +311,15 @@ def build_worker_pose(round_id, actors, server_hint=None):
     return message
 
 
+def build_worker_entered(round_id, map_name=None):
+    """Worker 已进入 Offline 战斗空间。"""
+    message = _base(C.MSG_WORKER_ENTERED)
+    message['round_id'] = _exact_int(round_id, 'round_id', low=0)
+    if map_name is not None:
+        message['map'] = _optional_text(map_name, 'map', 96)
+    return message
+
+
 # --- 服务器 → 客户端 -------------------------------------------------------
 
 
