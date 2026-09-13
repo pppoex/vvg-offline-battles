@@ -370,25 +370,35 @@ pytest tests/unit tests/integration
 
 ## M6: 基础同步 ⬜
 
-**状态**: 未开始  
+**状态**: 架构已确认，编码未开始  
 **预计时间**: 3-4 天  
-**依赖**: M3, M4
+**依赖**: M3, M4, M5  
+**设计**: `docs/design/m6_architecture.md`（2026-09 用户确认）
 
 ### 目标
 
-实现基础同步：进入战斗、移动、炮塔。
+实现基础同步：进入战斗、移动、炮塔；0.9.22 三层权威；Web 状态页；局域网。
+
+### 架构要点（已确认）
+
+- 可见客户端 → Python sim-worker → 隐藏游戏 worker（Offline battle 空间权威）
+- 车库点战斗尽早拦截 Offline；打开本机 Web；仅房主开战
+- 无白名单地图/车；车数据一致性校验；原地 Bot；移植 0.9.22 呈现
+- 局域网固定主机手填 IP；leave 回车库
 
 ### 交付物
 
-1. 战斗进入流程
+1. 战斗进入流程（join_gate + Web）
 2. 移动同步
 3. 炮塔同步
 
 ### 验收标准
 
-- ✅ 两个客户端可进入同一场战斗
+- ✅ 两个客户端可进入同一场战斗（不进 Offline 单机）
 - ✅ 移动同步正常
 - ✅ 炮塔同步正常
+- ✅ 局域网第二台可加入
+- ✅ 权威在 worker 游戏进程
 
 ### 测试方式
 
@@ -400,6 +410,8 @@ pytest tests/integration/test_battle_enter.py test_movement_sync.py test_turret_
 
 - 移动物理精度
 - 网络延迟影响
+- 最早 join 拦截点真机验证
+- 0.9.22 呈现层 API 适配
 
 ### 未来方向
 

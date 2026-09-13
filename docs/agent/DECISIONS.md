@@ -336,3 +336,43 @@
   - 握手成功写 `VVG_WORKER_READY_MARKER`
   - starter 参数：`--player` / `--worker-only` / `--show` / `--hide`
 - **状态**：已执行（M4）
+
+## 决策：M6 权威物理放在独立隐藏游戏进程（0.9.22 三层拓扑）
+
+- **背景**：M5 真机已到车库；点 join 会进 Offline 单机。用户要求权威由「单独游戏进程」计算，且权威不作为玩家
+- **选项**：
+  1. 0.9.22 三层：可见客户端 → Python sim-worker → 隐藏游戏 worker
+  2. 双层：客户端直连游戏 worker
+  3. M6 先纯 Python 物理，worker 后置
+- **结论**：选项 1
+- **影响**：
+  - sim-worker 仍管房间/中继/快照；物理与碰撞在 worker 的 Offline battle 空间
+  - 数据路径：client → sim-worker → worker → sim-worker → replicas
+  - 单人同路径：server + worker + player
+- **证据**：用户多轮确认；参考 `wot-offline-battles` CLAUDE.md / README hidden simulation worker
+- **状态**：已确认（设计）
+
+## 决策：M6 用本机 Web 状态页替代游戏内房间 UI
+
+- **背景**：用户要求大改房间/匹配，且明确「不要用游戏内 UI，用 WEB 界面」；Web 放在玩家客户端侧而非 sim-worker
+- **结论**：
+  - 车库点战斗 → **尽早拦截** Offline enterRandom/joining → 打开浏览器到本机 HTTP
+  - 每客户端本机 Web（18080 起自动递增端口）；控制转发到 sim-worker
+  - Web 范围：状态页 + 开战；**仅房主可开战**；房主 = 首连 player
+- **影响**：不做 Flash/原生 waiting room；实现 join_gate + webui 模块
+- **状态**：已确认（设计）
+
+## 决策：M6 地图/车辆无白名单；车数据只做一致性校验
+
+- **结论**：吃 Offline ArenaType 与车库现有数据；M6 校验 compact descr/关键哈希，不一致拒进同一房；完整 profile 下发后置
+- **状态**：已确认（设计）
+
+## 决策：M6 Bot 原地不动；远端呈现移植 0.9.22
+
+- **结论**：Bot 出生后原地，无移动/射击 AI（AI 后置）；远端车呈现移植 0.9.22 entities/presentation 思路并适配 2.3.1.2；leave 可回车库，结果屏后置
+- **状态**：已确认（设计）
+
+## 决策：M6 支持局域网多机（固定主机手填 IP）
+
+- **结论**：不做服务发现；`VVG_SERVER_HOST` 手填；sim-worker 可监听 0.0.0.0
+- **状态**：已确认（设计）

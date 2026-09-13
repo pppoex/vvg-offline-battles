@@ -24,6 +24,7 @@
 | 11 | TASK-M5 | 命令行启动器与统一部署 | 已完成（代码+测试；真机一键待验） | src/launcher/**, src/deploy/install_all.py, tests/integration/test_launcher.py, docs/design/launcher.md | pytest 全绿 + CLI dry-run 冒烟 | 8e4f0da | 2026-09-13 |
 | 11b | TASK-M5.b | 构建产物统一 build/ + launcher build | 已完成 | build/multiclient/native/**, src/launcher/build.py, install_multiclient, build.ps1 | pytest 全绿 + 产物迁移验证 | 6ff7ad5 | 2026-09-13 |
 | 11c | TASK-M5.c | build 补 py→pyc（2.7 magic=62211） | 已完成 | src/launcher/bytecode.py, build.py, cli.py | pytest 全绿 + protocol/constants.pyc magic 校验 | f08dceb | 2026-09-13 |
+| 12 | TASK-M6-DESIGN | M6 联机架构与用户确认 | 已完成（设计） | docs/design/m6_architecture.md, DECISIONS, OPEN_QUESTIONS, HANDOFF | 用户多轮确认 + 文档评审 | 待 commit | 2026-09-14 |
 
 ## 状态说明
 

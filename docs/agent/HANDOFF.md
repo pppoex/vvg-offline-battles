@@ -4,21 +4,22 @@
 
 ## 当前阶段
 
-**M0–M5 代码完成（M4 真机通过；M5 真机一键待用户验证）**
+**M0–M5 代码完成；M6 联机架构已与用户确认（设计文档就绪，编码未开始）**
 
-- M0 多实例、M1 SDK、M2 协议、M3 服务器骨架、M4 薄客户端、M5 启动器均已完成
-- M5：`python -m launcher build|deploy|server|player|worker`
-- 构建产物统一 `build/`（镜像 `src/`）：native `.pyd`/`.exe` + **Py2.7 .pyc（magic=62211）**
-- 下一步：用户真机验证 M5；随后 **M6 基础同步**（开工前确认 Bot AI / 战斗模式 / 地图）
+- M0–M5 代码完成（M4 真机通过；M5 已到车库，join 仍会进 Offline 单机 → M6 拦截）
+- **M6 架构已确认**：见 `docs/design/m6_architecture.md` + DECISIONS 新增条目
+- 拓扑：0.9.22 三层（客户端 → Python sim-worker → 隐藏游戏 worker 权威）
+- UI：本机 Web 状态页；局域网；无白名单地图/车；原地 Bot；移植 0.9.22 呈现
+- 下一步：按 m6_architecture 编码（join_gate → 协议/房间 → worker 进 battle → 同步与呈现）
 
 远程仓库：https://github.com/pppoex/vvg-offline-battles  
 分支：`main`（开发，本地名 `master`）、`base`（存档）
 
 ## 最后 commit
 
-- **hash**: `f08dceb`
-- **message**: `feat(launcher): build 阶段编译 Python 2.7 pyc 至 build/ [TASK-M5]`
-- **已推送**: `master` → `origin/main`（M5 三连 commit 一并推送）
+- **hash**: 待本轮 docs commit 回填
+- **message**: `docs(design): M6 联机架构确认与交接更新 [TASK-M6-DESIGN]`
+- **已推送**: 本轮结束时推送 `master` → `origin/main`
 
 M5 关键业务 commit：
 
@@ -68,27 +69,25 @@ M4 关键业务 commit 摘要：
 
 ## 正在处理
 
-- M5 代码已推送；等待用户真机验证
+- M6 联机架构讨论完成；设计已写入 `docs/design/m6_architecture.md`
+- 业务编码尚未开始
 
 ## 下一步建议
 
-### M5 真机验证（用户）
+### M6 编码顺序（建议）
 
-```powershell
-cd D:\Projects\vvg-offline-battles
-$env:PYTHONPATH = "src"
-python -m launcher build
-python -m launcher deploy
-# 终端 A
-python -m launcher server
-# 终端 B
-python -m launcher player --name Alice
-```
+1. **join_gate**：拦截 Offline `battle.enterRandom` / CMD_ENQUEUE，防 joining 卡死
+2. **protocol + sim_worker room**：host/ready/map/start_battle；worker 提案中继
+3. **client webui**：本机 HTTP 状态页 + 浏览器拉起 + 18080 递增
+4. **worker**：start_battle 后进入 Offline battle 空间；原地 Bot
+5. **presentation + interpolation**：适配 0.9.22 远端呈现
+6. **车数据一致性校验**；leave 回车库
+7. 真机：本机双开 + 局域网第二台
 
-### M6（验证通过后）
+### 文档
 
-1. 战斗进入流程 + 移动/炮塔同步
-2. 开工前确认：Bot AI 范围 / 战斗模式 / 地图（OPEN_QUESTIONS）
+- 详细设计：`docs/design/m6_architecture.md`
+- 决策：`docs/agent/DECISIONS.md`（M6 系列新增）
 
 ## 关键文件
 
@@ -177,9 +176,10 @@ python -m pytest tests/unit tests/integration -q
 
 ## 待用户确认
 
-1. ~~M0-M4~~ — 已完成（M4 真机通过）
-2. **M5 真机验证**：build → deploy → server → player 能否进车库并 join
-3. Bot AI 范围 / 单人模式 / 战斗模式 / 地图：M6 前最终确认
+1. ~~M0-M4~~ — 已完成
+2. ~~M5 进车库~~ — 已确认可进车库；join 进单机由 M6 拦截处理
+3. ~~M6 架构选项~~ — **已确认**（m6_architecture）
+4. M6 编码开工后：真机验收 join 不卡、双端同步、局域网加入
 
 ## 禁止事项提醒
 
