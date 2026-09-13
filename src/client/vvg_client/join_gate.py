@@ -55,6 +55,7 @@ def _intercepted_enqueue(requestID, args):
     arena_type_id = arr[3] if len(arr) > 3 else 0
     _log('intercepted CMD_ENQUEUE vehInvID=%s arenaTypeID=%s' % (
         veh_inv_id, arena_type_id))
+    hide_waiting_overlay()
     try:
         _respond_success(requestID)
     except Exception as exc:
@@ -81,6 +82,7 @@ def _respond_success(requestID):
 def _intercepted_enter_random(vehInvID=None, arenaTypeID=0, *args, **kwargs):
     _log('intercepted battle.enterRandom vehInvID=%s arenaTypeID=%s' % (
         vehInvID, arenaTypeID))
+    hide_waiting_overlay()
     _call_handler(vehInvID, arenaTypeID)
     return False
 
@@ -88,16 +90,15 @@ def _intercepted_enter_random(vehInvID=None, arenaTypeID=0, *args, **kwargs):
 def _wrapped_fight_click(header, map_id=None, action_name=None):
     """Earliest Battle! click — never fall through to stock joining screen."""
     _log('fightClick map_id=%s action=%s' % (map_id, action_name))
+    hide_waiting_overlay()
     veh = None
     arena = 0
     try:
-        # Best-effort: read selected vehicle if header exposes it.
         if header is not None:
             veh = getattr(header, 'selectedVehicleInvID', None)
     except Exception:
         pass
     _call_handler(veh, arena)
-    # Return None like 0.9.22: do not open retail prebattle/join.
     return None
 
 
@@ -106,34 +107,91 @@ def _patch_fight_button():
     global _fight_button
     if _fight_button is not None:
         return False
-    try:
-        from gui.Scaleform.daapi.view.lobby.header.LobbyHeader import (
-            LobbyHeader)
-    except Exception as exc:
-        _log('LobbyHeader unavailable: %s' % exc)
+    header_type = _resolve_lobby_header_type()
+    if header_type is None:
+        _log('LobbyHeader unavailable (all import paths failed)')
         return False
 
-    had_own = 'fightClick' in LobbyHeader.__dict__
-    original = LobbyHeader.__dict__.get(
-        'fightClick', getattr(LobbyHeader, 'fightClick', None))
+    had_own = 'fightClick' in header_type.__dict__
+    original = header_type.__dict__.get(
+        'fightClick', getattr(header_type, 'fightClick', None))
     if not callable(original):
         _log('LobbyHeader.fightClick missing')
         return False
 
     wrapper = _wrapped_fight_click
     try:
-        LobbyHeader.fightClick = wrapper
+        header_type.fightClick = wrapper
     except Exception as exc:
         _log('assign fightClick failed: %s' % exc)
         return False
     _fight_button = {
-        'type': LobbyHeader,
+        'type': header_type,
         'original': original,
         'wrapper': wrapper,
         'had_own': had_own,
     }
-    _log('patched LobbyHeader.fightClick')
+    _log('patched LobbyHeader.fightClick on %s' % getattr(
+        header_type, '__name__', header_type))
     return True
+
+
+def _resolve_lobby_header_type():
+    """Find LobbyHeader class on 2.3.1.2 without assuming one import path."""
+    candidates = (
+        'gui.Scaleform.daapi.view.lobby.header.LobbyHeader',
+        'gui.Scaleform.daapi.view.lobby.header.lobby_header',
+        'gui.Scaleform.daapi.view.meta.LobbyHeaderMeta',
+    )
+    try:
+        import importlib
+    except Exception:
+        importlib = None
+
+    if importlib is not None:
+        for path in candidates:
+            try:
+                module = importlib.import_module(path)
+            except Exception as exc:
+                _log('import %s failed: %s' % (path, exc))
+                continue
+            for attr in ('LobbyHeader', 'LobbyHeaderMeta'):
+                found = getattr(module, attr, None)
+                if isinstance(found, type):
+                    return found
+
+    # After lobby load, the class may already be in sys.modules.
+    try:
+        import sys
+        for name, module in list(sys.modules.items()):
+            if module is None:
+                continue
+            if 'LobbyHeader' not in name and 'lobby.header' not in name:
+                continue
+            for attr in ('LobbyHeader', 'LobbyHeaderMeta'):
+                found = getattr(module, attr, None)
+                if isinstance(found, type) and callable(
+                        getattr(found, 'fightClick', None)):
+                    return found
+    except Exception:
+        pass
+    return None
+
+
+def hide_waiting_overlay():
+    """Dismiss stock joining/waiting UI (gui.Scaleform.Waiting)."""
+    try:
+        from gui.Scaleform import Waiting
+        hide = getattr(Waiting, 'hide', None)
+        if callable(hide):
+            try:
+                hide()
+            except TypeError:
+                hide('join')
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def install():
@@ -238,6 +296,7 @@ __all__ = [
     'uninstall',
     'is_installed',
     'fight_button_installed',
+    'hide_waiting_overlay',
     'set_handler',
     'handler',
 ]

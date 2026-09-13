@@ -31,11 +31,63 @@ def _log(message):
 
 
 def _get_session():
+    """Return the live ClientSession from whichever bootstrap module holds it."""
+    candidates = []
     try:
-        from vvg_client import bootstrap
-        return bootstrap.session()
+        from .. import bootstrap as rel_bootstrap
+        candidates.append(rel_bootstrap)
     except Exception:
+        pass
+    try:
+        from gui.mods.vvg_client import bootstrap as game_bootstrap
+        candidates.append(game_bootstrap)
+    except Exception:
+        pass
+    try:
+        from vvg_client import bootstrap as top_bootstrap
+        candidates.append(top_bootstrap)
+    except Exception:
+        pass
+
+    if not candidates:
+        _log('bootstrap module not found')
         return None
+
+    seen = set()
+    for bootstrap in candidates:
+        key = id(bootstrap)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            session = bootstrap.session()
+        except Exception as exc:
+            _log('bootstrap.session() failed on %s: %s' % (
+                getattr(bootstrap, '__name__', '?'), exc))
+            continue
+        if session is not None:
+            _log('session found on %s' % getattr(bootstrap, '__name__', '?'))
+            return session
+
+    _log('no session on any bootstrap module (%d candidates)' % len(candidates))
+    return None
+
+
+def _hide_waiting():
+    """Dismiss stock joining/waiting overlay after intercept."""
+    try:
+        from gui.Scaleform import Waiting
+        hide = getattr(Waiting, 'hide', None)
+        if callable(hide):
+            try:
+                hide()
+            except TypeError:
+                hide('join')
+            _log('Waiting.hide() called')
+            return True
+    except Exception as exc:
+        _log('Waiting.hide failed: %s' % exc)
+    return False
 
 
 def _ensure_session():
@@ -55,14 +107,12 @@ def _ensure_session():
 def start_room_web(session=None):
     """Start (or reuse) status web bound to the BattleClient."""
     global _web, _controller
-    session = session or _get_session()
-    if session is None:
-        _log('start_room_web: no session')
-        return None
+    session = session if session is not None else _get_session()
     if _web is not None:
         return _web.url
+    client = getattr(session, 'client', None) if session is not None else None
     try:
-        _controller = WebController(session.client, session=session)
+        _controller = WebController(client, session=session)
         _web = StatusWebServer(_controller)
         url = _web.start()
     except Exception as exc:
@@ -70,7 +120,8 @@ def start_room_web(session=None):
         _web = None
         _controller = None
         return None
-    _log('web at %s' % url)
+    _log('web at %s (session=%s client=%s)' % (
+        url, session is not None, client is not None))
     return url
 
 
@@ -123,20 +174,17 @@ def open_browser(url):
 def on_battle_clicked(veh_inv_id=None, arena_type_id=0):
     """join_gate handler: open local room web instead of Offline battle."""
     global _retries
-    _log('battle click vehInvID=%s arenaTypeID=%s handler_ok' % (
-        veh_inv_id, arena_type_id))
+    _log('battle click vehInvID=%s arenaTypeID=%s' % (veh_inv_id, arena_type_id))
+    _hide_waiting()
     try:
         session = _ensure_session()
-        if session is None:
-            # Session not ready yet — still try web with a note via logs.
-            _log('session missing; scheduling retry install')
-            _schedule_retry_install()
-            return None
         url = start_room_web(session)
         if url:
             open_browser(url)
         else:
             _log('web url is None after start_room_web')
+            if session is None:
+                _schedule_retry_install()
         return url
     except Exception as exc:
         _log('on_battle_clicked failed: %s' % exc)

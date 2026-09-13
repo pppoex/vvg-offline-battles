@@ -65,6 +65,21 @@ class WebController(object):
 
     def get_status(self):
         client = self.client
+        if client is None:
+            return {
+                'server': '?',
+                'map': None,
+                'phase': None,
+                'round_id': 0,
+                'host_player_id': None,
+                'player_id': None,
+                'name': None,
+                'vehicle': None,
+                'team': None,
+                'connected': False,
+                'is_host': False,
+                'players': [],
+            }
         players = []
         roster = getattr(client, 'roster', None)
         if isinstance(roster, dict):
@@ -95,6 +110,8 @@ class WebController(object):
 
     def request_start(self):
         client = self.client
+        if client is None:
+            return False, 'no_client'
         if hasattr(client, 'is_host') and not client.is_host():
             return False, 'not_host'
         if hasattr(client, 'send_start_battle'):

@@ -4,11 +4,18 @@
 
 ## 当前阶段
 
-**M0–M5 完成；M6 Phase2–4 + join 修复代码完成（待真机再验）**
+**日志已定位真因并修复（待用户 build+deploy 再验）**
 
-- **Join 修复**：`LobbyHeader.fightClick` 最早拦截（防 joining 层）；浏览器用 `os.startfile`/`cmd start`；LobbyHeader 延迟重试安装
-- Phase2–4 仍有效（Web、worker pose、RemoteScene、leave）
-- 下一步：用户 `launcher build && deploy` 后再点 Battle 看 `vvg-player-python.log`
+日志证据（`vvg-player-python.log` 13:08/13:14）：
+1. `handshake ok` 后点 Battle → `intercepted CMD_ENQUEUE` → **`no session yet`**
+   - 原因：`join_flow` 用 `from vvg_client import bootstrap`，游戏内 session 在 `gui.mods.vvg_client.bootstrap`（双模块）
+2. `LobbyHeader unavailable: No module named LobbyHeader` → fightClick 从未装上 → joining 层是 stock Waiting
+
+修复：
+- `_get_session` 遍历多个 bootstrap 直至拿到 session
+- 无 session 也启动本机 Web 并开浏览器
+- 拦截时 `Waiting.hide`
+- LobbyHeader 多路径解析 + sys.modules 扫描
 
 远程仓库：https://github.com/pppoex/vvg-offline-battles  
 分支：`main`（开发，本地名 `master`）、`base`（存档）

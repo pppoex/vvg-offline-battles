@@ -228,6 +228,54 @@ def test_join_gate_intercepts_enqueue(monkeypatch):
                 sys.modules[name] = mod
 
 
+def test_get_session_finds_gui_mods_bootstrap():
+    import sys
+    import types
+
+    sentinel = object()
+    fake = types.ModuleType('gui.mods.vvg_client.bootstrap')
+    fake.session = lambda: sentinel
+
+    import vvg_client.bootstrap as real_bootstrap
+    real_session = real_bootstrap.session
+    real_bootstrap.session = lambda: None
+
+    saved = {}
+    for name in (
+        'gui',
+        'gui.mods',
+        'gui.mods.vvg_client',
+        'gui.mods.vvg_client.bootstrap',
+    ):
+        saved[name] = sys.modules.get(name)
+
+    sys.modules['gui'] = types.ModuleType('gui')
+    sys.modules['gui.mods'] = types.ModuleType('gui.mods')
+    pkg = types.ModuleType('gui.mods.vvg_client')
+    pkg.bootstrap = fake
+    sys.modules['gui.mods.vvg_client'] = pkg
+    sys.modules['gui.mods.vvg_client.bootstrap'] = fake
+
+    try:
+        assert join_flow._get_session() is sentinel
+    finally:
+        real_bootstrap.session = real_session
+        for name, value in saved.items():
+            if value is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = value
+
+
+def test_start_room_web_without_session_opens():
+    join_flow.stop_room_web()
+    try:
+        url = join_flow.start_room_web(None)
+        assert url and url.startswith('http://127.0.0.1:')
+    finally:
+        join_flow.stop_room_web()
+
+
 def test_join_flow_start_room_web():
     client = _FakeClient(host=True)
     session = type('S', (), {'client': client})()
@@ -235,7 +283,6 @@ def test_join_flow_start_room_web():
     try:
         url = join_flow.start_room_web(session)
         assert url and url.startswith('http://127.0.0.1:')
-        # reuse
         assert join_flow.start_room_web(session) == url
     finally:
         join_flow.stop_room_web()
