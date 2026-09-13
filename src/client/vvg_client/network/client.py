@@ -256,13 +256,26 @@ class BattleClient(object):
             self.map_name = message['map']
         if 'state_revision' in message:
             self.state_revision = int(message['state_revision'] or 0)
+        try:
+            import sys
+            sys.stdout.write(
+                '[VVG client] battle_start round=%s map=%s role=%s\n' % (
+                    self.round_id, self.map_name, self.role))
+            sys.stdout.flush()
+        except Exception:
+            pass
         if self.worker_authority is not None:
             try:
                 self.worker_authority.on_battle_start(message)
-            except Exception:
-                pass
+            except Exception as exc:
+                try:
+                    import sys
+                    sys.stdout.write('[VVG client] worker battle_start err: %s\n' % exc)
+                    sys.stdout.flush()
+                except Exception:
+                    pass
         elif self.role == ROLE_PLAYER:
-            # Visible client must load Offline battle space on battle_start.
+            # Visible client is pulled in after worker_entered.
             try:
                 from ..worker_authority import enter_offline_space
             except (ImportError, ValueError):

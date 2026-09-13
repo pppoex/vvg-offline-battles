@@ -99,18 +99,20 @@ def apply_server_pose_to_local(client, session=None):
 
 
 def enter_offline_space(map_name, log_prefix=None, lan_player=False,
-                       worker_observe=False):
+                       worker_observe=False, authority=False):
     """Enter Offline battle space.
 
     lan_player=True: visible client map/terrain only — no Offline private bots.
-    worker_observe=True: hidden worker enters the same map for observation /
-    authority space (still not a room player). Offline bots stay off so this
-    is not a second Offline single-player match.
+    authority=True: hidden worker enters Offline as the battle authority
+    (still not a room player). Offline private bots stay off so this is not
+    a second independent Offline bot match.
+    worker_observe=True: legacy alias for authority.
     """
     prefix = log_prefix or LOG_PREFIX
-    if not lan_player and not worker_observe:
+    authority = bool(authority or worker_observe)
+    if not lan_player and not authority:
         sys.stdout.write(
-            '%s refusing Offline enter for non-player (use observe flag)\n'
+            '%s refusing Offline enter for non-player (use authority flag)\n'
             % prefix)
         return False
     geometry = resolve_map_name(map_name)
@@ -128,8 +130,8 @@ def enter_offline_space(map_name, log_prefix=None, lan_player=False,
             sys.stdout.write('%s already in battle; skip enter\n' % prefix)
             return True
         result = battle.enter(geometry)
-        sys.stdout.write('%s battle.enter(%r) observe=%s lan_player=%s -> %s\n' % (
-            prefix, geometry, bool(worker_observe), bool(lan_player), result))
+        sys.stdout.write('%s battle.enter(%r) authority=%s lan_player=%s -> %s\n' % (
+            prefix, geometry, bool(authority), bool(lan_player), result))
         return bool(result)
     except Exception as exc:
         sys.stdout.write('%s battle.enter failed: %s\n' % (prefix, exc))
@@ -171,23 +173,26 @@ class WorkerAuthority(object):
     def on_battle_start(self, message):
         round_id = int(message.get('round_id') or 0)
         map_name = message.get('map') or getattr(self.client, 'map_name', None)
-        _log('battle_start round=%s map=%s (worker enter first)' % (
+        _log('battle_start round=%s map=%s (authority enter first)' % (
             round_id, map_name))
         self._last_round = round_id
         self.in_battle = True
-        # Worker enters Offline map FIRST, then notifies server to pull players.
+        # Authority worker enters Offline FIRST (not observation mode).
+        # Offline private bots stay off; sim-worker bots + poses are the roster.
         self.space_entered = enter_offline_space(
             map_name,
             log_prefix=LOG_PREFIX,
-            worker_observe=True,
+            lan_player=False,
+            worker_observe=False,
+            authority=True,
         )
-        if self.space_entered:
-            try:
-                self.client.send_message(
-                    build_worker_entered(round_id, map_name=map_name))
-                _log('sent worker_entered round=%s' % round_id)
-            except Exception as exc:
-                _log('send worker_entered failed: %s' % exc)
+        _log('authority space_entered=%s' % bool(self.space_entered))
+        try:
+            self.client.send_message(
+                build_worker_entered(round_id, map_name=map_name))
+            _log('sent worker_entered round=%s' % round_id)
+        except Exception as exc:
+            _log('send worker_entered failed: %s' % exc)
 
     def on_battle_live(self, message):
         if not self.in_battle:
