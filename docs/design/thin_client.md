@@ -114,10 +114,17 @@ python -m pytest tests/unit/test_client_network.py tests/integration/test_client
 仅 vvg 客户端**无法**进车库。完整最小组合：
 
 ```powershell
+# 推荐（M5）
+python -m launcher deploy
+
+# 或分步
+python src/deploy/install_all.py
 python src/deploy/install_multiclient.py  # 守卫 + starter
 python src/deploy/install_client.py       # 薄客户端
 python src/deploy/install_offhangar.py    # Offline 车库
 ```
+
+启动见 `docs/design/launcher.md`。
 
 ## 14. M4 已知简化（续）
 

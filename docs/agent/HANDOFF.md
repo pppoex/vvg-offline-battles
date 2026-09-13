@@ -4,19 +4,20 @@
 
 ## 当前阶段
 
-**M4 完成并真机通过：进车库 + player/worker 均可 join sim-worker**
+**M5 代码完成（pytest 全绿）；真机一键待用户验证**
 
 M0 多实例、M1 SDK、M2 协议、M3 服务器骨架、M4 薄客户端均已完成。  
-下一步：**M5 命令行启动器与统一部署**。
+M5 交付 `python -m launcher deploy|server|player|worker` 与 `install_all`。  
+下一步：用户真机验证 M5；随后进入 **M6 基础同步**（开工前确认 Bot AI / 战斗模式）。
 
 远程仓库：https://github.com/pppoex/vvg-offline-battles  
 分支：`main`（开发）、`base`（存档）
 
 ## 最后 commit
 
-- **hash**: `09aac72`
-- **message**: `feat(multiclient): worker starter 支持 --show/--hide 控制隐藏窗口 [TASK-M4]`
-- **已推送**: `master` → `origin/main`
+- **hash**: `（见 git log — M5 feat commit）`
+- **message**: `feat(launcher): 命令行启动器与统一部署 [TASK-M5]`
+- **已推送**: 待确认后 `master` → `origin/main`
 
 M4 关键业务 commit 摘要：
 
@@ -38,18 +39,17 @@ M4 关键业务 commit 摘要：
 4. **TASK-M2**: 协议与序列化
 5. **TASK-M3**: sim-worker 权威服务器骨架
 6. **TASK-M4**: 薄客户端补丁（**真机通过**）
-   - `src/client/vvg_client/**` — network / prediction / session / hooks
-   - `src/client/mod_vvg_client.py` — BigWorld 入口（init **永不抛异常**）
-   - `src/client/offline_entry/mod_offhangar2.py` — 修复 Decompyle 入口
-   - `src/deploy/install_client.py` / `install_offhangar.py`
-   - sim-worker 接入/离开/开战日志；接受 `role=worker`
-   - starter：`--player` / `--worker-only` / `--show` / `--hide`
-   - 单测 + 集成测试全绿；Py2.7 可编译
-   - **真机**：进车库；player `handshake ok` + `join`；worker `role=worker` 可连
+7. **TASK-M5**: 命令行启动器与统一部署（**代码+测试完成**）
+   - `src/launcher/{cli,paths,env,ports,server,client}.py`
+   - `src/deploy/install_all.py` 薄壳串联
+   - `tests/integration/test_launcher.py`
+   - `docs/design/launcher.md`
+   - 子命令：`deploy` / `server` / `player` / `worker`（独立，不捆绑一键全起）
+   - 端口占用默认报错；`--kill-port` 才清理
 
 ## 未完成
 
-1. **M5: 命令行启动器与部署**（下一个里程碑）
+1. **M5 真机验证**：launcher 一键 → 车库 + sim-worker accept/join
 2. **M6-M9**: 后续里程碑
 3. 运动积分 / 射击 / Bot / 重连接线（M6-M8）
 4. **WGC cleanup thunk x64 RVA 逆向**（低优先级）
@@ -57,18 +57,35 @@ M4 关键业务 commit 摘要：
 
 ## 正在处理
 
-- M4 已收尾；等待用户确认进入 **M5**
+- M5 代码已落地；等待用户真机验证
 
-## 下一步建议（M5）
+## 下一步建议
 
-1. `src/launcher/` — 一条命令拉起 sim-worker + 可选 player/worker
-2. 统一部署：`install_client` + `install_multiclient` + `install_offhangar`（或合一）
-3. 设置 `VVG_PLAYER_NAME` / `VVG_PLAYER_VEHICLE` / `VVG_SERVER_*` / `VVG_CLIENT_MODE`
-4. 避免残留旧 sim-worker 占 28782（真机联调时已踩坑）
-5. `tests/integration/test_launcher.py`
-6. 真机：launcher 一键 → 车库 + sim-worker join
+### M5 真机验证（用户）
+
+```powershell
+cd D:\Projects\vvg-offline-battles
+$env:PYTHONPATH = "src"
+python -m launcher deploy
+# 终端 A
+python -m launcher server
+# 终端 B
+python -m launcher player --name Alice
+```
+
+### M6（验证通过后）
+
+1. 战斗进入流程 + 移动/炮塔同步
+2. 开工前确认：Bot AI 范围 / 战斗模式 / 地图（OPEN_QUESTIONS）
 
 ## 关键文件
+
+### M5
+
+- `src/launcher/**`
+- `src/deploy/install_all.py`
+- `tests/integration/test_launcher.py`
+- `docs/design/launcher.md`
 
 ### M4
 
@@ -109,19 +126,22 @@ M4 关键业务 commit 摘要：
 ## 环境 / 联调速查
 
 ```powershell
-# sim-worker
+# 推荐（M5 launcher）
 cd D:\Projects\vvg-offline-battles
 $env:PYTHONPATH = "src"
-python -m sim_worker.main --host 127.0.0.1 --port 28782 --map training
+python -m launcher deploy
+python -m launcher server            # 可选 --kill-port
+python -m launcher player --name Alice
+python -m launcher worker --show     # 可选
 
-# player
+# 旧路径（仍可用）
+python -m sim_worker.main --host 127.0.0.1 --port 28782 --map training
 cd "D:\WOT\World_of_Tanks_EU_Offline_2.3.1.2\win64"
 .\vvg_worker_starter.exe --player
 
-# 可见 worker
-.\vvg_worker_starter.exe --worker-only --show
-
-# 部署
+# 部署（仍可用）
+python src/deploy/install_all.py
+# 或分步
 python src/deploy/install_multiclient.py
 python src/deploy/install_client.py
 python src/deploy/install_offhangar.py
@@ -138,12 +158,13 @@ python -m pytest tests/unit tests/integration -q
 2. 真实 drive/shooting 迁入需拆 Offline 大文件。
 3. 宿主无法加载 Py2.7 pyd — 游戏内验证以日志为准。
 4. 多开时注意 worker 单例互斥 `Local\vvg_offline_worker`。
+5. launcher `--force-game-exe` 不注入多开守卫，双开场景勿用。
 
 ## 待用户确认
 
 1. ~~M0-M4~~ — 已完成（M4 真机通过）
-2. 是否继续 **M5（命令行启动器与统一部署）**
-3. Bot AI 范围 / 单人模式：DECISIONS 已倾向「基础 Bot」「单人也启 sim-worker」，M6 前最终确认
+2. **M5 真机验证**：deploy → server → player 能否进车库并 join
+3. Bot AI 范围 / 单人模式 / 战斗模式 / 地图：M6 前最终确认
 
 ## 禁止事项提醒
 

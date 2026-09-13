@@ -1,6 +1,6 @@
 # MILESTONES.md — 里程碑总览与进度追踪
 
-> 最后更新：2026-09-12（M4 完成后）
+> 最后更新：2026-09-12（M5 代码完成后）
 > 用途：追踪所有里程碑的进度、交付物、验收标准和未来方向
 
 ---
@@ -13,13 +13,13 @@ M1 █████████████████████████�
 M2 ████████████████████████████████ 100%  ✅ 已完成
 M3 ████████████████████████████████ 100%  ✅ 已完成
 M4 ████████████████████████████████ 100%  ✅ 已完成（骨架）
-M5 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
+M5 ████████████████████████████████ 100%  ✅ 代码完成（真机待验）
 M6 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M7 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M8 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 M9 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%  ⬜ 未开始
 
-整体进度: 50% (5/10 里程碑)
+整体进度: 60% (6/10 里程碑)
 ```
 
 ---
@@ -301,45 +301,64 @@ pytest tests/unit tests/integration
 
 ---
 
-## M5: 命令行启动器与部署 ⬜
+## M5: 命令行启动器与部署 ✅
 
-**状态**: 未开始  
-**预计时间**: 2-3 天  
+**状态**: 代码完成（真机一键待用户验证）  
+**完成时间**: 2026-09-12  
 **依赖**: M3, M4
 
 ### 目标
 
-实现命令行启动器，自动化部署到 res_mods。
+实现命令行启动器，自动化部署到 res_mods；server / player / worker 独立拉起。
 
 ### 交付物
 
-1. `src/launcher/` — 启动器模块
-2. `src/deploy/` — 部署脚本（已部分存在于 M0）
-3. `docs/design/launcher.md` — 使用文档
+| 路径 | 说明 |
+|---|---|
+| `src/launcher/cli.py` | `deploy` / `server` / `player` / `worker` 子命令 |
+| `src/launcher/paths.py` | 工作区 / 游戏根 / starter 路径 |
+| `src/launcher/env.py` | `VVG_*` 环境变量组装 |
+| `src/launcher/ports.py` | 端口占用检测；可选 `--kill-port` |
+| `src/launcher/server.py` | 起停 sim-worker 并等就绪 |
+| `src/launcher/client.py` | starter / WorldOfTanks.exe 拉起客户端 |
+| `src/deploy/install_all.py` | 三件套薄壳串联 |
+| `tests/integration/test_launcher.py` | 集成测试 |
+| `docs/design/launcher.md` | 使用与设计文档 |
+
+### Commits
+
+- `feat(launcher): 命令行启动器与统一部署 [TASK-M5]`
 
 ### 验收标准
 
-- ✅ 部署脚本可用
-- ✅ 启动器可用
-- ✅ 文档完整
+- ✅ 部署脚本可用（install_all + dry-run 冒烟）
+- ✅ 启动器可用（CLI 解析 + sim-worker 子进程 bind 测试）
+- ✅ 文档完整（docs/design/launcher.md）
+- ⬜ 真机：launcher 一键 → 车库 + sim-worker accept/join（待用户）
 
 ### 测试方式
 
 ```bash
 pytest tests/integration/test_launcher.py
+pytest tests/unit tests/integration
 ```
+
+### 关键决策
+
+1. server / player / worker **独立子命令**，不做捆绑一键全起（用户要求）
+2. 端口占用默认**报错**；`--kill-port` 才 taskkill 本地 LISTENING
+3. deploy 为薄壳，不复制 install_* 逻辑
+4. 优先 `vvg_worker_starter.exe`；`--force-game-exe` 仅调试
 
 ### 风险
 
-- pyc magic number 兼容性
-- 部署路径问题
+- pyc magic number 兼容性（沿用 install_multiclient）
+- 部署路径问题（沿用现有脚本）
 
 ### 未来方向
 
-启动器是用户入口，需要确保：
-- 易用性
-- 错误处理
-- 文档完整
+- 用户真机验证后关闭 M5
+- M6 基础同步
 
 ---
 
@@ -518,9 +537,9 @@ M1 (SDK) ✅ ──→ M2 (协议) ✅ ──→ M3 (服务器) ✅ ──→ M6
                 │              │                    │
                 └──────────────┼────────────────────┘
                                │
-M4 (客户端) ⬜ ←────────────────┘
+M4 (客户端) ✅ ←────────────────┘
      │
-     └──→ M5 (启动器) ⬜
+     └──→ M5 (启动器) ✅
 ```
 
 **关键路径**: M1 → M2 → M3 → M6 → M7 → M8 → M9
@@ -544,7 +563,7 @@ M4 (客户端) ⬜ ←────────────────┘
 - ⬜ 单人也能以联机模式运行
 - ⬜ 断线重连可用
 - ⬜ 不做反作弊
-- ⬜ 有命令行启动器
+- ⬜ 有命令行启动器（M5 代码就绪，真机待验）
 - ⬜ 代码模块化，多文件拆分
 - ⬜ 有测试
 - ⬜ 有文档
