@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Intercept Offline single-player battle enter so LAN join can take over.
+"""Intercept Offline/stock battle enter so LAN join can take over.
 
-Patches ``gui.mods.offhangar2.fake_server`` after Offline hangar loads:
-``CMD_ENQUEUE_IN_BATTLE_QUEUE`` must never call ``battle.enterRandom``.
+Earliest hook: ``LobbyHeader.fightClick`` (same idea as 0.9.22 JoinButtonUI),
+so the retail "Joining..." waiting screen never opens.
+
+Fallback hooks: Offline ``fake_server`` CMD_ENQUEUE and ``battle.enterRandom``.
 """
 from __future__ import absolute_import, division, print_function
 
@@ -11,9 +13,10 @@ import sys
 LOG_PREFIX = '[VVG join_gate] '
 
 _installed = False
-_handler = None  # callable(veh_inv_id, arena_type_id) -> None
+_handler = None
 _orig_enqueue = None
 _orig_enter_random = None
+_fight_button = None  # dict describing LobbyHeader patch state
 
 
 def _log(message):
@@ -25,7 +28,6 @@ def _log(message):
 
 
 def set_handler(handler):
-    """Install callback invoked on intercepted Battle! clicks."""
     global _handler
     _handler = handler
 
@@ -38,15 +40,16 @@ def _call_handler(veh_inv_id, arena_type_id):
     if _handler is None:
         _log('join requested vehInvID=%s arenaTypeID=%s (no handler)' % (
             veh_inv_id, arena_type_id))
-        return
+        return False
     try:
         _handler(veh_inv_id, arena_type_id)
+        return True
     except Exception as exc:
         _log('handler failed: %s' % exc)
+        return False
 
 
 def _intercepted_enqueue(requestID, args):
-    """Replacement for Offline _cmdEnqueueInBattleQueue."""
     arr = args[0] if args else []
     veh_inv_id = arr[1] if len(arr) > 1 else None
     arena_type_id = arr[3] if len(arr) > 3 else 0
@@ -60,7 +63,6 @@ def _intercepted_enqueue(requestID, args):
 
 
 def _respond_success(requestID):
-    """Ack enqueue so the Flash lobby does not stick on a spinner."""
     try:
         from gui.mods.offhangar2 import fake_server
         respond = getattr(fake_server, '_respond', None)
@@ -77,63 +79,128 @@ def _respond_success(requestID):
 
 
 def _intercepted_enter_random(vehInvID=None, arenaTypeID=0, *args, **kwargs):
-    """Fallback if something still calls battle.enterRandom."""
     _log('intercepted battle.enterRandom vehInvID=%s arenaTypeID=%s' % (
         vehInvID, arenaTypeID))
     _call_handler(vehInvID, arenaTypeID)
     return False
 
 
-def install():
-    """Patch Offline modules. Idempotent. Returns True if patched."""
-    global _installed, _orig_enqueue, _orig_enter_random
-    if _installed:
-        return True
+def _wrapped_fight_click(header, map_id=None, action_name=None):
+    """Earliest Battle! click — never fall through to stock joining screen."""
+    _log('fightClick map_id=%s action=%s' % (map_id, action_name))
+    veh = None
+    arena = 0
+    try:
+        # Best-effort: read selected vehicle if header exposes it.
+        if header is not None:
+            veh = getattr(header, 'selectedVehicleInvID', None)
+    except Exception:
+        pass
+    _call_handler(veh, arena)
+    # Return None like 0.9.22: do not open retail prebattle/join.
+    return None
 
+
+def _patch_fight_button():
+    """Patch LobbyHeader.fightClick. Returns True if newly patched."""
+    global _fight_button
+    if _fight_button is not None:
+        return False
+    try:
+        from gui.Scaleform.daapi.view.lobby.header.LobbyHeader import (
+            LobbyHeader)
+    except Exception as exc:
+        _log('LobbyHeader unavailable: %s' % exc)
+        return False
+
+    had_own = 'fightClick' in LobbyHeader.__dict__
+    original = LobbyHeader.__dict__.get(
+        'fightClick', getattr(LobbyHeader, 'fightClick', None))
+    if not callable(original):
+        _log('LobbyHeader.fightClick missing')
+        return False
+
+    wrapper = _wrapped_fight_click
+    try:
+        LobbyHeader.fightClick = wrapper
+    except Exception as exc:
+        _log('assign fightClick failed: %s' % exc)
+        return False
+    _fight_button = {
+        'type': LobbyHeader,
+        'original': original,
+        'wrapper': wrapper,
+        'had_own': had_own,
+    }
+    _log('patched LobbyHeader.fightClick')
+    return True
+
+
+def install():
+    """Install all available hooks. Idempotent; safe to retry."""
+    global _installed, _orig_enqueue, _orig_enter_random
+    patched_any = False
+
+    # --- Offline CMD_ENQUEUE / enterRandom ---
     try:
         from gui.mods.offhangar2 import fake_server
     except Exception as exc:
         _log('fake_server unavailable: %s' % exc)
-        return False
-
-    patched = False
-
-    orig = getattr(fake_server, '_cmdEnqueueInBattleQueue', None)
-    if callable(orig):
-        _orig_enqueue = orig
-        fake_server._cmdEnqueueInBattleQueue = _intercepted_enqueue
-        try:
-            import AccountCommands
-            cmd = getattr(AccountCommands, 'CMD_ENQUEUE_IN_BATTLE_QUEUE', None)
-            commands = getattr(fake_server, '_COMMANDS', None)
-            if cmd is not None and isinstance(commands, dict):
-                commands[cmd] = _intercepted_enqueue
-        except Exception as exc:
-            _log('rebind _COMMANDS failed: %s' % exc)
-        patched = True
-        _log('patched fake_server CMD_ENQUEUE_IN_BATTLE_QUEUE')
+    else:
+        orig = getattr(fake_server, '_cmdEnqueueInBattleQueue', None)
+        if callable(orig) and _orig_enqueue is None:
+            _orig_enqueue = orig
+            fake_server._cmdEnqueueInBattleQueue = _intercepted_enqueue
+            try:
+                import AccountCommands
+                cmd = getattr(AccountCommands, 'CMD_ENQUEUE_IN_BATTLE_QUEUE', None)
+                commands = getattr(fake_server, '_COMMANDS', None)
+                if cmd is not None and isinstance(commands, dict):
+                    commands[cmd] = _intercepted_enqueue
+            except Exception as exc:
+                _log('rebind _COMMANDS failed: %s' % exc)
+            patched_any = True
+            _log('patched fake_server CMD_ENQUEUE')
 
     try:
         from gui.mods.offhangar2 import battle
         orig_er = getattr(battle, 'enterRandom', None)
-        if callable(orig_er):
+        if callable(orig_er) and _orig_enter_random is None:
             _orig_enter_random = orig_er
             battle.enterRandom = _intercepted_enter_random
-            patched = True
-            _log('patched battle.enterRandom fallback')
+            patched_any = True
+            _log('patched battle.enterRandom')
     except Exception as exc:
         _log('battle patch skipped: %s' % exc)
 
-    if patched:
+    # --- Earliest: LobbyHeader.fightClick ---
+    if _patch_fight_button():
+        patched_any = True
+
+    if patched_any:
         _installed = True
-    return patched
+    return patched_any or _installed
 
 
 def uninstall():
-    """Best-effort restore of original Offline handlers."""
-    global _installed
-    if not _installed:
-        return
+    global _installed, _fight_button
+    if _fight_button is not None:
+        state = _fight_button
+        _fight_button = None
+        try:
+            header_type = state['type']
+            current = header_type.__dict__.get(
+                'fightClick', getattr(header_type, 'fightClick', None))
+            if current is state['wrapper']:
+                if state['had_own']:
+                    header_type.fightClick = state['original']
+                else:
+                    try:
+                        delattr(header_type, 'fightClick')
+                    except Exception:
+                        header_type.fightClick = state['original']
+        except Exception:
+            pass
     try:
         from gui.mods.offhangar2 import fake_server
         if _orig_enqueue is not None:
@@ -162,10 +229,15 @@ def is_installed():
     return bool(_installed)
 
 
+def fight_button_installed():
+    return _fight_button is not None
+
+
 __all__ = [
     'install',
     'uninstall',
     'is_installed',
+    'fight_button_installed',
     'set_handler',
     'handler',
 ]

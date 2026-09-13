@@ -3,6 +3,7 @@
 from __future__ import absolute_import, division, print_function
 
 import json
+import os
 import sys
 import threading
 import time
@@ -173,6 +174,7 @@ def test_join_gate_intercepts_enqueue(monkeypatch):
     join_gate._handler = None
     join_gate._orig_enqueue = None
     join_gate._orig_enter_random = None
+    join_gate._fight_button = None
 
     fake_server = _FakeFakeServer()
     battle = _FakeBattle()
@@ -237,3 +239,26 @@ def test_join_flow_start_room_web():
         assert join_flow.start_room_web(session) == url
     finally:
         join_flow.stop_room_web()
+
+
+def test_join_gate_fight_click_wrapper():
+    join_gate._fight_button = None
+    join_gate._handler = None
+    seen = []
+    join_gate.set_handler(lambda v, a: seen.append((v, a)))
+    result = join_gate._wrapped_fight_click(None, map_id=5, action_name='random')
+    assert result is None
+    assert seen
+    join_gate.set_handler(None)
+
+
+def test_open_browser_windows_startfile(monkeypatch):
+    calls = []
+
+    def fake_startfile(url):
+        calls.append(url)
+
+    monkeypatch.setattr(os, 'name', 'nt', raising=False)
+    monkeypatch.setattr(os, 'startfile', fake_startfile, raising=False)
+    assert join_flow.open_browser('http://127.0.0.1:18080/') is True
+    assert calls == ['http://127.0.0.1:18080/']

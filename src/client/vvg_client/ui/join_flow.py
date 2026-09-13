@@ -2,8 +2,8 @@
 """Battle! click orchestration: ensure connect, start local web, open browser."""
 from __future__ import absolute_import, division, print_function
 
+import os
 import sys
-import webbrowser
 
 try:
     from .. import join_gate
@@ -16,6 +16,10 @@ LOG_PREFIX = '[VVG join_flow] '
 
 _web = None
 _controller = None
+_retries = 0
+_MAX_RETRIES = 30
+_browser_last_url = None
+_browser_ok = False
 
 
 def _log(message):
@@ -53,43 +57,90 @@ def start_room_web(session=None):
     global _web, _controller
     session = session or _get_session()
     if session is None:
+        _log('start_room_web: no session')
         return None
     if _web is not None:
         return _web.url
-    _controller = WebController(session.client, session=session)
-    _web = StatusWebServer(_controller)
     try:
+        _controller = WebController(session.client, session=session)
+        _web = StatusWebServer(_controller)
         url = _web.start()
     except Exception as exc:
         _log('web start failed: %s' % exc)
         _web = None
+        _controller = None
         return None
     _log('web at %s' % url)
     return url
 
 
 def open_browser(url):
+    """Open URL in the system browser. Game process often needs ShellExecute."""
+    global _browser_last_url, _browser_ok
     if not url:
         return False
+    _browser_last_url = url
+    _log('open_browser %s' % url)
+
+    # 1) Windows ShellExecute via os.startfile (no ctypes needed)
     try:
-        webbrowser.open(url)
-        _log('browser open %s' % url)
-        return True
+        if os.name == 'nt' and hasattr(os, 'startfile'):
+            os.startfile(url)
+            _browser_ok = True
+            _log('browser via os.startfile')
+            return True
     except Exception as exc:
-        _log('browser open failed: %s' % exc)
-        return False
+        _log('os.startfile failed: %s' % exc)
+
+    # 2) cmd start
+    try:
+        if os.name == 'nt':
+            import subprocess
+            subprocess.Popen(
+                ['cmd', '/c', 'start', '', url],
+                close_fds=True,
+                shell=False)
+            _browser_ok = True
+            _log('browser via cmd start')
+            return True
+    except Exception as exc:
+        _log('cmd start failed: %s' % exc)
+
+    # 3) webbrowser fallback
+    try:
+        import webbrowser
+        opened = webbrowser.open(url)
+        _browser_ok = bool(opened)
+        _log('browser via webbrowser.open -> %s' % opened)
+        return bool(opened)
+    except Exception as exc:
+        _log('webbrowser failed: %s' % exc)
+
+    _log('all browser methods failed; open manually: %s' % url)
+    return False
 
 
 def on_battle_clicked(veh_inv_id=None, arena_type_id=0):
     """join_gate handler: open local room web instead of Offline battle."""
-    _log('battle click vehInvID=%s arenaTypeID=%s' % (veh_inv_id, arena_type_id))
-    session = _ensure_session()
-    if session is None:
+    global _retries
+    _log('battle click vehInvID=%s arenaTypeID=%s handler_ok' % (
+        veh_inv_id, arena_type_id))
+    try:
+        session = _ensure_session()
+        if session is None:
+            # Session not ready yet — still try web with a note via logs.
+            _log('session missing; scheduling retry install')
+            _schedule_retry_install()
+            return None
+        url = start_room_web(session)
+        if url:
+            open_browser(url)
+        else:
+            _log('web url is None after start_room_web')
+        return url
+    except Exception as exc:
+        _log('on_battle_clicked failed: %s' % exc)
         return None
-    url = start_room_web(session)
-    if url:
-        open_browser(url)
-    return url
 
 
 def stop_room_web():
@@ -103,15 +154,54 @@ def stop_room_web():
     _controller = None
 
 
+def _schedule_retry_install():
+    """LobbyHeader may not be importable at first bootstrap.init."""
+    global _retries
+    if _retries >= _MAX_RETRIES:
+        return
+    _retries += 1
+
+    def _retry():
+        try:
+            join_gate.install()
+            _log('retry install #%d fight=%s offline=%s' % (
+                _retries,
+                join_gate.fight_button_installed(),
+                join_gate.is_installed()))
+        except Exception as exc:
+            _log('retry install failed: %s' % exc)
+        if _retries < _MAX_RETRIES:
+            _arm_callback(2.0, _retry)
+
+    _arm_callback(2.0, _retry)
+
+
+def _arm_callback(delay, fn):
+    try:
+        import BigWorld
+        callback = getattr(BigWorld, 'callback', None)
+        if callable(callback):
+            callback(delay, fn)
+            return True
+    except Exception as exc:
+        _log('BigWorld.callback unavailable: %s' % exc)
+    return False
+
+
 def install():
+    global _retries
     join_gate.set_handler(on_battle_clicked)
     ok = join_gate.install()
-    _log('join_gate installed=%s' % ok)
-    return ok
+    _log('join_gate install fight=%s offline=%s' % (
+        join_gate.fight_button_installed(), join_gate.is_installed()))
+    # Keep retrying until fightClick is patched (lobby may load later).
+    if not join_gate.fight_button_installed():
+        _retries = 0
+        _schedule_retry_install()
+    return ok or join_gate.fight_button_installed()
 
 
 def leave_to_garage():
-    """Client-side leave battle (Web / future UI hook)."""
     session = _get_session()
     if session is None:
         _log('leave_to_garage: no session')
@@ -129,6 +219,14 @@ def web_url():
     return _web.url if _web is not None else None
 
 
+def last_browser_url():
+    return _browser_last_url
+
+
+def browser_ok():
+    return _browser_ok
+
+
 __all__ = [
     'install',
     'on_battle_clicked',
@@ -137,4 +235,6 @@ __all__ = [
     'open_browser',
     'leave_to_garage',
     'web_url',
+    'last_browser_url',
+    'browser_ok',
 ]
