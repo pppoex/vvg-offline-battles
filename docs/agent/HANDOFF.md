@@ -17,9 +17,9 @@
 
 ## 最后 commit
 
-- **hash**: 待本轮 docs commit 回填
+- **hash**: `5c7dec1`
 - **message**: `docs(design): M6 联机架构确认与交接更新 [TASK-M6-DESIGN]`
-- **已推送**: 本轮结束时推送 `master` → `origin/main`
+- **已推送**: `master` → `origin/main`
 
 M5 关键业务 commit：
 
