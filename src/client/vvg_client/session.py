@@ -189,9 +189,13 @@ class ClientSession(object):
                 except Exception:
                     pass
         elif self._last_phase == 'battle' and phase in ('waiting', 'finished', None):
-            # Round ended or left: drop remote registry.
+            # Round ended or left: drop remote registry and leave Offline view.
             self.remote_scene.clear()
             self.snapshots.clear()
+            try:
+                self._offline_leave_best_effort()
+            except Exception:
+                pass
         self._last_phase = phase
 
     def _absorb_authority(self):

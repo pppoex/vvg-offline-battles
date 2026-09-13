@@ -107,9 +107,11 @@ class WebController(object):
             'connected': bool(getattr(client, 'connected', False)),
             'is_host': bool(client.is_host()) if hasattr(client, 'is_host') else False,
             'players': players,
+            'known_maps': list(getattr(client, 'known_maps', None) or []),
+            'last_end_reason': getattr(client, 'last_end_reason', None),
         }
 
-    def request_start(self):
+    def request_start(self, map_name=None, round_seconds=None):
         client = self.client
         if client is None:
             return False, 'no_client'
@@ -118,9 +120,23 @@ class WebController(object):
         if hasattr(client, 'is_host') and not client.is_host():
             return False, 'not_host'
         if hasattr(client, 'send_start_battle'):
-            ok = client.send_start_battle()
+            ok = client.send_start_battle(
+                round_seconds=round_seconds, map_name=map_name)
             return bool(ok), '' if ok else 'send_failed'
         return False, 'no_start_api'
+
+    def request_select_map(self, map_name):
+        client = self.client
+        if client is None:
+            return False, 'no_client'
+        if not getattr(client, 'connected', False):
+            return False, 'not_connected'
+        if hasattr(client, 'is_host') and not client.is_host():
+            return False, 'not_host'
+        if hasattr(client, 'send_select_map'):
+            ok = client.send_select_map(map_name)
+            return bool(ok), '' if ok else 'send_failed'
+        return False, 'no_select_map_api'
 
     def request_connect(self):
         session = getattr(self, 'session', None)
@@ -224,9 +240,20 @@ class StatusWebServer(object):
                     length = int(self.headers.get('Content-Length') or 0)
                 except Exception:
                     length = 0
+                body = b''
                 if length > 0:
                     try:
-                        self.rfile.read(length)
+                        body = self.rfile.read(length)
+                    except Exception:
+                        body = b''
+                form = {}
+                if body:
+                    try:
+                        text = body.decode('utf-8', 'replace')
+                        for part in text.split('&'):
+                            if '=' in part:
+                                key, value = part.split('=', 1)
+                                form[key.strip()] = value.strip()
                     except Exception:
                         pass
                 if path == '/start':
@@ -240,14 +267,27 @@ class StatusWebServer(object):
                         self._send(403, json.dumps({'ok': False, 'error': 'not_host'}),
                                    'application/json')
                         return
+                    map_name = form.get('map') or None
                     try:
-                        ok, reason = controller.request_start()
+                        ok, reason = controller.request_start(map_name=map_name)
                     except Exception as exc:
                         ok, reason = False, str(exc)
                     code = 200 if ok else 400
                     self._send(code, json.dumps({
                         'ok': bool(ok),
                         'error': reason or None,
+                    }), 'application/json')
+                    return
+                if path == '/map':
+                    map_name = form.get('map') or ''
+                    try:
+                        ok, reason = controller.request_select_map(map_name)
+                    except Exception as exc:
+                        ok, reason = False, str(exc)
+                    self._send(200 if ok else 400, json.dumps({
+                        'ok': bool(ok),
+                        'error': reason or None,
+                        'map': map_name,
                     }), 'application/json')
                     return
                 if path == '/leave':
@@ -325,14 +365,32 @@ def render_status_html(status, self_url):
         rows.append('<tr><td colspan="5">(empty)</td></tr>')
     connected = bool(status.get('connected'))
     is_host = bool(status.get('is_host'))
-    can_start = bool(is_host and connected and status.get('phase') in (None, 'waiting', 'finished'))
+    phase = status.get('phase') or '?'
+    in_waiting = phase in (None, 'waiting', 'finished')
+    can_start = bool(is_host and connected and in_waiting)
     start_disabled = '' if can_start else ' disabled'
     connect_disabled = '' if not connected else ' disabled'
+    map_disabled = '' if (is_host and connected and in_waiting) else ' disabled'
     is_host_txt = 'yes' if is_host else 'no'
     connected_txt = 'yes' if connected else 'no'
-    phase = status.get('phase') or '?'
     pid = status.get('player_id')
     host_id = status.get('host_player_id')
+    current_map = status.get('map') or 'vvg_default'
+    maps = status.get('known_maps') or []
+    if current_map and current_map not in maps:
+        maps = [current_map] + list(maps)
+    if not maps:
+        maps = [current_map]
+    options = []
+    for name in maps:
+        selected = ' selected' if name == current_map else ''
+        options.append(
+            '<option value="%s"%s>%s</option>' % (
+                _esc(name), selected, _esc(name)))
+    last_end = status.get('last_end_reason')
+    end_line = ''
+    if last_end:
+        end_line = '<li>上次结束: %s</li>' % _esc(last_end)
     hint = ''
     if not connected:
         hint = ('未连接 sim-worker。请先运行 python -m launcher server，'
@@ -341,12 +399,11 @@ def render_status_html(status, self_url):
         hint = '已连接但服务器未下发 host_player_id（协议异常）。'
     elif not is_host:
         hint = ('本机 player_id=%s，房主是 %s（先成功连上的玩家）。'
-                '若房主已退出，请等 roster 更新或由服务器重选房主。'
                 % (pid, host_id))
-    elif phase not in ('waiting', 'finished', None):
-        hint = '当前阶段=%s，需等待/结束后才能开战。' % phase
+    elif not in_waiting:
+        hint = '当前阶段=%s，对局进行中；结束后会自动回到等待。' % phase
     else:
-        hint = '已连接且你是房主（player_id=%s），可以开始战斗。' % pid
+        hint = '已连接且你是房主（player_id=%s）。可选图后开始战斗。' % pid
     return (
         '<!DOCTYPE html>\n'
         '<html lang="zh-CN"><head><meta charset="utf-8">'
@@ -358,6 +415,7 @@ def render_status_html(status, self_url):
         'td,th{border:1px solid #444;padding:6px 8px;text-align:left}'
         'button{margin:12px 8px 0 0;padding:10px 16px;font-size:16px}'
         'button:disabled{opacity:0.4}'
+        'select{margin:12px 8px 0 0;padding:8px;font-size:16px}'
         '.muted{color:#999}'
         '.hint{color:#fc6;margin:12px 0}'
         '</style></head><body>'
@@ -366,19 +424,23 @@ def render_status_html(status, self_url):
         '<ul>'
         '<li>本页: <code>' + _esc(self_url) + '</code></li>'
         '<li>服务器: ' + _esc(status.get('server')) + '</li>'
-        '<li>地图: ' + _esc(status.get('map')) + '</li>'
+        '<li>地图: ' + _esc(current_map) + '</li>'
         '<li>阶段: ' + _esc(phase) + '</li>'
         '<li>回合: ' + _esc(status.get('round_id')) + '</li>'
         '<li>房主 ID: ' + _esc(host_id) + '</li>'
         '<li>本机: ' + _esc(status.get('name')) + ' (player_id='
         + _esc(pid) + ', host=' + is_host_txt + ')</li>'
         '<li>连接 sim-worker: ' + connected_txt + '</li>'
+        + end_line +
         '</ul>'
         '<table><tr><th>ID</th><th>名字</th><th>队伍</th><th>车辆</th><th>就绪</th></tr>'
         + ''.join(rows) +
         '</table>'
+        '<label>地图 <select id="map">' + ''.join(options) + '</select></label>'
+        '<button id="setmap" onclick="doMap()"' + map_disabled + '>应用地图</button>'
         '<button id="connect" onclick="doConnect()"' + connect_disabled + '>连接服务器</button>'
         '<button id="start" onclick="doStart()"' + start_disabled + '>开始战斗</button>'
+        '<button id="leave" onclick="doLeave()">离开战斗</button>'
         '<p id="msg" class="muted"></p>'
         '<script>'
         'function doConnect(){'
@@ -386,9 +448,25 @@ def render_status_html(status, self_url):
         '.then(function(j){document.getElementById("msg").textContent=j.ok?("connected "+(j.reason||"")):("connect failed: "+(j.error||""));'
         'location.reload();})'
         '.catch(function(e){document.getElementById("msg").textContent=String(e);});}'
+        'function doMap(){'
+        'var m=document.getElementById("map").value;'
+        'fetch("/map",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},'
+        'body:"map="+encodeURIComponent(m)})'
+        '.then(function(r){return r.json();})'
+        '.then(function(j){document.getElementById("msg").textContent=j.ok?("map="+m):("map failed: "+(j.error||""));'
+        'location.reload();})'
+        '.catch(function(e){document.getElementById("msg").textContent=String(e);});}'
         'function doStart(){'
-        'fetch("/start",{method:"POST"}).then(function(r){return r.json();})'
+        'var m=document.getElementById("map").value;'
+        'fetch("/start",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},'
+        'body:"map="+encodeURIComponent(m)})'
+        '.then(function(r){return r.json();})'
         '.then(function(j){document.getElementById("msg").textContent=j.ok?"started":(j.error||"failed");'
+        'if(j.ok)location.reload();})'
+        '.catch(function(e){document.getElementById("msg").textContent=String(e);});}'
+        'function doLeave(){'
+        'fetch("/leave",{method:"POST"}).then(function(r){return r.json();})'
+        '.then(function(j){document.getElementById("msg").textContent=j.ok?"left":(j.error||"failed");'
         'if(j.ok)location.reload();})'
         '.catch(function(e){document.getElementById("msg").textContent=String(e);});}'
         '</script>'

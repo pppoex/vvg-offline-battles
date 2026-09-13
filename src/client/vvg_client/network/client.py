@@ -35,6 +35,7 @@ from protocol.messages import (
     build_leave,
     build_leave_battle,
     build_ping,
+    build_select_map,
     build_select_team,
     build_select_vehicle,
     build_start_battle,
@@ -92,6 +93,8 @@ class BattleClient(object):
         self.team = None
         self.host_player_id = None
         self.map_name = None
+        self.known_maps = []
+        self.last_end_reason = None
         self.state_revision = 0
         self.spawn = None
         self.last_pong = None
@@ -231,6 +234,20 @@ class BattleClient(object):
             self.state_revision = int(message['state_revision'] or 0)
         if 'host_player_id' in message:
             self.host_player_id = message['host_player_id']
+        if 'map' in message:
+            self.map_name = message['map']
+        if 'known_maps' in message and isinstance(message['known_maps'], (list, tuple)):
+            self.known_maps = list(message['known_maps'])
+        if 'last_end_reason' in message:
+            self.last_end_reason = message['last_end_reason']
+
+    def _on_events(self, message):
+        self.last_events = list(message.get('events') or ())
+        for event in self.last_events:
+            if isinstance(event, dict) and event.get('type') == 'battle_end':
+                self.last_end_reason = event.get('reason')
+                if self.phase == 'battle':
+                    self.phase = 'waiting'
 
     def _on_battle_start(self, message):
         if 'round_id' in message:
@@ -296,9 +313,6 @@ class BattleClient(object):
         if 'round_id' in message:
             self.round_id = int(message['round_id'] or 0)
 
-    def _on_events(self, message):
-        self.last_events = list(message.get('events') or ())
-
     def _on_pong(self, message):
         self.last_pong = message
 
@@ -339,9 +353,16 @@ class BattleClient(object):
         self._ping_seq += 1
         return self.send_message(build_ping(self._ping_seq, time.time()))
 
-    def send_start_battle(self, round_seconds=None):
+    def send_start_battle(self, round_seconds=None, map_name=None):
         return self.send_message(
-            build_start_battle(self.round_id, requested_round_seconds=round_seconds))
+            build_start_battle(
+                self.round_id,
+                requested_round_seconds=round_seconds,
+                map_name=map_name,
+            ))
+
+    def send_select_map(self, map_name):
+        return self.send_message(build_select_map(map_name))
 
     def send_battle_ready(self, round_id=None):
         rid = self.round_id if round_id is None else round_id

@@ -167,8 +167,8 @@ def build_leave_battle(round_id):
     }
 
 
-def build_start_battle(round_id=0, requested_round_seconds=None):
-    """host 请求开始战斗。"""
+def build_start_battle(round_id=0, requested_round_seconds=None, map_name=None):
+    """host 请求开始战斗。可选 map_name 覆盖房间当前地图。"""
     message = {
         'type': C.MSG_START_BATTLE,
         'round_id': _exact_int(round_id, 'round_id', low=0),
@@ -177,6 +177,10 @@ def build_start_battle(round_id=0, requested_round_seconds=None):
         message['round_seconds'] = _exact_int(
             requested_round_seconds, 'round_seconds',
             low=C.MIN_ROUND_SECONDS, high=C.MAX_ROUND_SECONDS)
+    if map_name is not None:
+        name = _optional_text(map_name, 'map_name', 96)
+        if name:
+            message['map'] = name
     return message
 
 
@@ -212,6 +216,16 @@ def build_battle_ready(round_id):
         'type': C.MSG_BATTLE_READY,
         'round_id': _exact_int(round_id, 'round_id', low=0),
     }
+
+
+def build_select_map(map_name):
+    """host 在 waiting 相位选择下一局地图。"""
+    name = _optional_text(map_name, 'map_name', 96)
+    if not name:
+        raise ProtocolError('select_map requires map_name')
+    message = _base(C.MSG_SELECT_MAP)
+    message['map_name'] = name
+    return message
 
 
 def build_input(round_id, forward, turn, aim_yaw=0.0, gun_pitch=0.0,

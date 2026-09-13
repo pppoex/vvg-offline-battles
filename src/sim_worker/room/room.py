@@ -5,6 +5,8 @@ from __future__ import absolute_import, division, print_function
 import time
 
 from protocol.constants import (
+    DEFAULT_ROOM_MAP,
+    KNOWN_ROOM_MAPS,
     MAX_TEAM_SIZE,
     PHASE_BATTLE,
     PHASE_WAITING,
@@ -14,12 +16,35 @@ from sim_worker.room.lobby import assign_team, spawn_point_for_team, team_counts
 from sim_worker.session import BotSlot, PlayerSession, vehicle_data_hash
 
 
+def normalize_map_name(map_name):
+    """Accept known maps and aliases; unknown names are rejected by set_map."""
+    if not map_name:
+        return DEFAULT_ROOM_MAP
+    name = str(map_name).strip()
+    aliases = {
+        'ensk': '06_ensk',
+        'karelia': '01_karelia',
+        'malinovka': '02_malinovka',
+        'himmelsdorf': '04_himmelsdorf',
+        'prohorovka': '05_prohorovka',
+    }
+    name = aliases.get(name.lower(), name)
+    return name
+
+
+def is_known_map(map_name):
+    name = normalize_map_name(map_name)
+    return name in KNOWN_ROOM_MAPS
+
+
 class Room(object):
     """默认单房间。线程安全由外部（GameServer.lock）保证。"""
 
-    def __init__(self, map_name='vvg_default', team_size=MAX_TEAM_SIZE,
+    def __init__(self, map_name=DEFAULT_ROOM_MAP, team_size=MAX_TEAM_SIZE,
                  stationary_bots=0):
-        self.map_name = map_name
+        # Constructor keeps any provided name (tests / CLI). set_map validates
+        # against KNOWN_ROOM_MAPS for Web/host selection.
+        self.map_name = normalize_map_name(map_name) if map_name else DEFAULT_ROOM_MAP
         self.team_size = int(team_size)
         self.stationary_bots = int(stationary_bots or 0)
         self.phase = PHASE_WAITING
@@ -32,6 +57,10 @@ class Room(object):
         self._order = []
         self._bots = {}
         self._vehicle_hash_group = None
+        self.battle_started_at = 0.0
+        self.battle_duration_seconds = 0.0
+        self.last_end_reason = None
+        self.last_end_round_id = 0
 
     # --- 成员 ---------------------------------------------------------------
 
@@ -49,6 +78,15 @@ class Room(object):
 
     def host(self):
         return self._players.get(self.host_player_id)
+
+    def human_players(self):
+        return [s for s in self.players() if s.role != 'worker']
+
+    def connected_humans(self):
+        return [
+            s for s in self.human_players()
+            if getattr(s, 'connected', False)
+        ]
 
     def join(self, name, vehicle, capabilities=None, client_build=None,
              requested_team=0, max_health=None, account_key=None, peer=None,
@@ -153,9 +191,27 @@ class Room(object):
         self._bump_revision()
         return True
 
+    def set_map(self, player_id, map_name):
+        """host 在 waiting 选图。返回 (ok, reason)。"""
+        if player_id != self.host_player_id:
+            return False, 'not_host'
+        if self.phase != PHASE_WAITING:
+            return False, 'not_waiting'
+        normalized = normalize_map_name(map_name)
+        if not is_known_map(normalized):
+            return False, 'unknown_map'
+        if self.map_name == normalized:
+            return True, ''
+        self.map_name = normalized
+        self._bump_revision()
+        return True, ''
+
+    def known_maps(self):
+        return list(KNOWN_ROOM_MAPS)
+
     # --- 相位 / 回合 --------------------------------------------------------
 
-    def try_start_battle(self, requester_id, round_seconds=None):
+    def try_start_battle(self, requester_id, round_seconds=None, map_name=None):
         """host 请求开战。返回 (ok, message_or_reason)。"""
         if self.phase != PHASE_WAITING:
             return False, 'not_waiting'
@@ -163,8 +219,16 @@ class Room(object):
             return False, 'empty_room'
         if requester_id != self.host_player_id:
             return False, 'not_host'
+        if map_name:
+            ok, reason = self.set_map(requester_id, map_name)
+            if not ok:
+                return False, reason
         self.round_id += 1
         self.phase = PHASE_BATTLE
+        duration = float(round_seconds or 900)
+        self.battle_duration_seconds = duration
+        self.battle_started_at = time.time()
+        self.last_end_reason = None
         for session in self.players():
             session.ready = False
             session.ready_round_id = None
@@ -182,8 +246,8 @@ class Room(object):
             state_revision=self.state_revision,
             server_time_ms=self._now_ms(),
             countdown_seconds=0.0,
-            battle_duration_seconds=float(round_seconds or 900),
-            timing={'prebattle': 0.0, 'duration': float(round_seconds or 900)},
+            battle_duration_seconds=duration,
+            timing={'prebattle': 0.0, 'duration': duration},
         )
         return True, {'battle_start': start, 'battle_live': live}
 
@@ -197,7 +261,6 @@ class Room(object):
             bot_id = self._next_bot_id
             self._next_bot_id += 1
             spawn = spawn_point_for_team(team, self.map_name)
-            # slight lateral offset so bots do not stack
             offset = float(index % 5) * 8.0
             pose = {
                 'x': float(spawn['x']) + offset,
@@ -226,10 +289,15 @@ class Room(object):
         self._bump_revision()
         return True
 
-    def return_to_waiting(self):
+    def return_to_waiting(self, reason=None):
         """回合结束后回到大厅。"""
         self.phase = PHASE_WAITING
         self._bots.clear()
+        self.battle_started_at = 0.0
+        self.battle_duration_seconds = 0.0
+        if reason is not None:
+            self.last_end_reason = reason
+            self.last_end_round_id = self.round_id
         for session in self.players():
             session.ready = False
             session.ready_round_id = None
@@ -267,8 +335,20 @@ class Room(object):
         return applied
 
     def tick_once(self, dt, server_tick):
-        """权威在 worker；服务器侧保持输入/提案姿态。"""
-        return
+        """Advance battle clock. Returns end reason string or None."""
+        if self.phase != PHASE_BATTLE:
+            return None
+        now = time.time()
+        if (self.battle_duration_seconds > 0
+                and self.battle_started_at > 0
+                and (now - self.battle_started_at) >= self.battle_duration_seconds):
+            self.return_to_waiting(reason='time_limit')
+            return 'time_limit'
+        # All humans gone → auto end (worker alone cannot keep a round alive).
+        if not self.connected_humans():
+            self.return_to_waiting(reason='no_players')
+            return 'no_players'
+        return None
 
     # --- 消息构造 -----------------------------------------------------------
 
@@ -286,17 +366,28 @@ class Room(object):
             if s.role != 'worker'
         ]
         rows.extend(bot.snapshot_row() for bot in self.bots())
-        return {'players': rows}
+        return {
+            'players': rows,
+            'map': self.map_name,
+            'phase': self.phase,
+            'round_id': self.round_id,
+        }
 
-    def welcome_fields(self, session):
+    def room_fields(self):
         return {
             'map': self.map_name,
             'phase': self.phase,
             'round_id': self.round_id,
             'state_revision': self.state_revision,
             'host_player_id': self.host_player_id,
-            'spawn': spawn_point_for_team(session.team, self.map_name),
+            'known_maps': list(KNOWN_ROOM_MAPS),
+            'last_end_reason': self.last_end_reason,
         }
+
+    def welcome_fields(self, session):
+        fields = self.room_fields()
+        fields['spawn'] = spawn_point_for_team(session.team, self.map_name)
+        return fields
 
     def _bump_revision(self):
         self.state_revision += 1
@@ -306,4 +397,4 @@ class Room(object):
         return int(time.time() * 1000)
 
 
-__all__ = ['Room']
+__all__ = ['Room', 'normalize_map_name', 'is_known_map']

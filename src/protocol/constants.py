@@ -52,6 +52,8 @@ MSG_INPUT = 'input'
 MSG_PING = 'ping'
 # worker → 服务器：权威 pose 提案（M6）
 MSG_WORKER_POSE = 'worker_pose'
+# host → 服务器：设置房间地图（waiting 相位）
+MSG_SELECT_MAP = 'select_map'
 
 # 服务器 → 客户端
 MSG_WELCOME = 'welcome'
@@ -78,6 +80,7 @@ CLIENT_TO_SERVER_TYPES = frozenset((
     MSG_INPUT,
     MSG_PING,
     MSG_WORKER_POSE,
+    MSG_SELECT_MAP,
 ))
 
 SERVER_TO_CLIENT_TYPES = frozenset((
@@ -156,3 +159,24 @@ MAX_ROUND_SECONDS = 14400
 MIN_ROUND_SECONDS = 60
 MAX_TEAM_SIZE = 15
 MAX_TEXT_LENGTH = 64
+
+# 房间可选地图（geometryName / 协议别名；Offline enter 可再映射）
+DEFAULT_ROOM_MAP = 'vvg_default'
+KNOWN_ROOM_MAPS = (
+    'vvg_default',
+    'training',
+    '06_ensk',
+    '01_karelia',
+    '02_malinovka',
+    '03_campania_big',
+    '04_himmelsdorf',
+    '05_prohorovka',
+    '07_lakeville',
+    '08_ruinberg',
+    '10_hills',
+    '11_monastery',
+    '12_eiffel_tower_ctf',
+    '13_munchen',
+    '14_siegfried_line',
+    '15_siegfried_line',
+)

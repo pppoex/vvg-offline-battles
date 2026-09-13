@@ -4,18 +4,13 @@
 
 ## 当前阶段
 
-**日志已定位真因并修复（待用户 build+deploy 再验）**
+**M6 房间完善：自动结束 + 选图（代码完成）**
 
-日志证据（`vvg-player-python.log` 13:08/13:14）：
-1. `handshake ok` 后点 Battle → `intercepted CMD_ENQUEUE` → **`no session yet`**
-   - 原因：`join_flow` 用 `from vvg_client import bootstrap`，游戏内 session 在 `gui.mods.vvg_client.bootstrap`（双模块）
-2. `LobbyHeader unavailable: No module named LobbyHeader` → fightClick 从未装上 → joining 层是 stock Waiting
-
-修复：
-- `_get_session` 遍历多个 bootstrap 直至拿到 session
-- 无 session 也启动本机 Web 并开浏览器
-- 拦截时 `Waiting.hide`
-- LobbyHeader 多路径解析 + sys.modules 扫描
+- `select_map`：host 在 waiting 选图；Web 下拉 + 应用地图
+- 自动结束：时限 `time_limit` / 无已连接真人 `no_players`；广播 `battle_end` + roster 回 waiting
+- 客户端 battle_end / phase 回 waiting 时离开 Offline 视图
+- Worker 不进 Offline 单机；玩家 lan_player 进图渲染
+- 下一步：真机验证；再考虑完整共享局呈现
 
 远程仓库：https://github.com/pppoex/vvg-offline-battles  
 分支：`main`（开发，本地名 `master`）、`base`（存档）

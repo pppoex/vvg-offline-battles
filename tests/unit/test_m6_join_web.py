@@ -54,8 +54,13 @@ class _FakeClient(object):
     def is_host(self):
         return self.player_id == self.host_player_id
 
-    def send_start_battle(self, round_seconds=None):
+    def send_start_battle(self, round_seconds=None, map_name=None):
         self.start_calls += 1
+        self.last_map_name = map_name
+        return True
+
+    def send_select_map(self, map_name):
+        self.map_name = map_name
         return True
 
 

@@ -29,6 +29,7 @@ from protocol.constants import (
     MSG_SELECT_TEAM,
     MSG_SELECT_VEHICLE,
     MSG_START_BATTLE,
+    MSG_SELECT_MAP,
     MSG_WORKER_POSE,
     PHASE_BATTLE,
     PHASE_WAITING,
@@ -114,9 +115,27 @@ class GameWorld(object):
     # --- tick / 快照 --------------------------------------------------------
 
     def tick_once(self, dt, server_tick):
+        end_reason = None
         with self.lock:
             self._tick = server_tick
-            self.room.tick_once(dt, server_tick)
+            end_reason = self.room.tick_once(dt, server_tick)
+        if end_reason:
+            self._announce_battle_end(end_reason)
+
+    def _announce_battle_end(self, reason):
+        """Broadcast battle_end event + waiting roster after auto/manual end."""
+        with self.lock:
+            round_id = self.room.round_id
+            revision = self.room.state_revision
+        try:
+            from protocol.messages import build_events
+            self.broadcast(build_events(round_id, [
+                {'type': 'battle_end', 'reason': reason, 'round_id': round_id},
+            ]))
+        except Exception:
+            pass
+        self.broadcast_roster()
+        _log('battle auto-end round_id=%s reason=%s' % (round_id, reason))
 
     def should_snapshot(self, server_tick):
         with self.lock:
@@ -167,6 +186,10 @@ class GameWorld(object):
             players=self.room.roster_players(),
             host_player_id=self.room.host_player_id,
             team_size=self.room.team_size,
+            extras={
+                'known_maps': list(self.room.known_maps()),
+                'last_end_reason': self.room.last_end_reason,
+            },
         )
 
     @staticmethod
@@ -525,6 +548,8 @@ class GameServer(object):
             return self._handle_leave_battle(session, message)
         if kind == MSG_START_BATTLE:
             return self._handle_start_battle(session, message)
+        if kind == MSG_SELECT_MAP:
+            return self._handle_select_map(session, message)
         if kind == MSG_SELECT_TEAM:
             return self._handle_select_team(session, message)
         if kind == MSG_SELECT_VEHICLE:
@@ -550,9 +575,11 @@ class GameServer(object):
         with self.world.lock:
             room = self.world.room
             requested_round_seconds = message.get('round_seconds')
+            map_name = message.get('map') or message.get('map_name')
             ok, result = room.try_start_battle(
                 session.player_id,
                 round_seconds=requested_round_seconds,
+                map_name=map_name,
             )
             if not ok:
                 denied = build_start_denied(result, result)
@@ -571,8 +598,23 @@ class GameServer(object):
         self.world.broadcast(events['battle_start'])
         self.world.broadcast(events['battle_live'])
         self.broadcast_roster()
-        _log('battle started round_id=%s by player_id=%s' % (
-            events['battle_start'].get('round_id'), session.player_id))
+        _log('battle started round_id=%s map=%s by player_id=%s' % (
+            events['battle_start'].get('round_id'),
+            events['battle_start'].get('map'),
+            session.player_id))
+        return True
+
+    def _handle_select_map(self, session, message):
+        map_name = message.get('map_name') or message.get('map')
+        with self.world.lock:
+            ok, reason = self.world.room.set_map(session.player_id, map_name)
+        if not ok:
+            _log('select_map denied player_id=%s map=%s reason=%s' % (
+                session.player_id, map_name, reason))
+        else:
+            _log('select_map ok player_id=%s map=%s' % (
+                session.player_id, self.world.room.map_name))
+        self.broadcast_roster()
         return True
 
     def _handle_select_team(self, session, message):
