@@ -34,6 +34,9 @@ def build_parser():
         '--map', default='vvg_default', dest='map_name',
         help='room map name')
     parser.add_argument(
+        '--stationary-bots', type=int, default=0,
+        help='M6: spawn N stationary bots at battle start')
+    parser.add_argument(
         '--team-size', type=int, default=15,
         help='max players per team')
     parser.add_argument(
@@ -54,6 +57,7 @@ def main(argv=None):
         team_size=args.team_size,
         server_tick_hz=args.tick_hz,
         snapshot_hz=args.snapshot_hz,
+        stationary_bots=args.stationary_bots,
     )
     stop_event = threading.Event()
 

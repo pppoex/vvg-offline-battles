@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""房间 — 成员、相位、回合号与轻量快照。"""
+"""房间 — 成员、原地 Bot、相位、回合号与轻量快照。"""
 from __future__ import absolute_import, division, print_function
 
 import time
@@ -11,22 +11,27 @@ from protocol.constants import (
 )
 from protocol.messages import build_battle_live, build_battle_start
 from sim_worker.room.lobby import assign_team, spawn_point_for_team, team_counts
-from sim_worker.session import PlayerSession
+from sim_worker.session import BotSlot, PlayerSession, vehicle_data_hash
 
 
 class Room(object):
     """默认单房间。线程安全由外部（GameServer.lock）保证。"""
 
-    def __init__(self, map_name='vvg_default', team_size=MAX_TEAM_SIZE):
+    def __init__(self, map_name='vvg_default', team_size=MAX_TEAM_SIZE,
+                 stationary_bots=0):
         self.map_name = map_name
         self.team_size = int(team_size)
+        self.stationary_bots = int(stationary_bots or 0)
         self.phase = PHASE_WAITING
         self.round_id = 0
         self.state_revision = 0
         self.host_player_id = 0
         self._next_player_id = 1
+        self._next_bot_id = 10000
         self._players = {}
         self._order = []
+        self._bots = {}
+        self._vehicle_hash_group = None
 
     # --- 成员 ---------------------------------------------------------------
 
@@ -36,6 +41,9 @@ class Room(object):
     def players(self):
         return [self._players[pid] for pid in self._order]
 
+    def bots(self):
+        return list(self._bots.values())
+
     def get(self, player_id):
         return self._players.get(player_id)
 
@@ -43,7 +51,8 @@ class Room(object):
         return self._players.get(self.host_player_id)
 
     def join(self, name, vehicle, capabilities=None, client_build=None,
-             requested_team=0, max_health=None, account_key=None, peer=None):
+             requested_team=0, max_health=None, account_key=None, peer=None,
+             role='player', vehicle_hash=None, catalog_hash=None):
         """加入大厅。返回 PlayerSession。"""
         session = PlayerSession(
             player_id=self._next_player_id,
@@ -55,13 +64,27 @@ class Room(object):
             max_health=max_health,
             account_key=account_key,
             peer=peer,
+            role=role,
+            vehicle_hash=vehicle_hash,
         )
+        # 车数据目录一致性：可选 catalog_hash；不同玩家可开不同车
+        group_key = catalog_hash or None
+        if role == 'player':
+            if not vehicle:
+                raise ValueError('player vehicle required')
+            if group_key:
+                if self._vehicle_hash_group is None:
+                    self._vehicle_hash_group = group_key
+                elif group_key != self._vehicle_hash_group:
+                    raise ValueError(
+                        'vehicle_data_mismatch:%s!=%s' % (
+                            group_key, self._vehicle_hash_group))
         session.team = assign_team(
             requested_team, self.players(), team_size=self.team_size)
         self._next_player_id += 1
         self._players[session.player_id] = session
         self._order.append(session.player_id)
-        if self.host_player_id == 0:
+        if self.host_player_id == 0 and role == 'player':
             self.host_player_id = session.player_id
         self._bump_revision()
         return session
@@ -75,6 +98,8 @@ class Room(object):
             self._order.remove(player_id)
         if self.host_player_id == player_id:
             self.host_player_id = self._order[0] if self._order else 0
+        if not any(p.role == 'player' for p in self.players()):
+            self._vehicle_hash_group = None
         self._bump_revision()
         return session
 
@@ -99,6 +124,7 @@ class Room(object):
         if session is None:
             return False
         session.vehicle = vehicle
+        session.vehicle_hash = vehicle_data_hash(vehicle)
         if max_health is not None:
             session.max_health = max_health
         self._bump_revision()
@@ -122,6 +148,8 @@ class Room(object):
             spawn = spawn_point_for_team(session.team, self.map_name)
             session.pose['position'] = [spawn['x'], spawn['y'], spawn['z']]
             session.pose['yaw'] = spawn['yaw']
+        self._bots.clear()
+        self._spawn_stationary_bots()
         self._bump_revision()
         start = build_battle_start(
             self.round_id, self.map_name, state_revision=self.state_revision)
@@ -135,6 +163,32 @@ class Room(object):
             timing={'prebattle': 0.0, 'duration': float(round_seconds or 900)},
         )
         return True, {'battle_start': start, 'battle_live': live}
+
+    def _spawn_stationary_bots(self):
+        count = max(0, int(self.stationary_bots))
+        if count <= 0:
+            return
+        half = (count + 1) // 2
+        for index in range(count):
+            team = 1 if index < half else 2
+            bot_id = self._next_bot_id
+            self._next_bot_id += 1
+            spawn = spawn_point_for_team(team, self.map_name)
+            # slight lateral offset so bots do not stack
+            offset = float(index % 5) * 8.0
+            pose = {
+                'x': float(spawn['x']) + offset,
+                'y': float(spawn['y']),
+                'z': float(spawn['z']) + offset * 0.25,
+                'yaw': float(spawn['yaw']),
+            }
+            self._bots[bot_id] = BotSlot(
+                bot_id=bot_id,
+                name='Bot%02d' % (index + 1),
+                vehicle='bot:dummy',
+                team=team,
+                pose=pose,
+            )
 
     def mark_ready(self, player_id, round_id):
         session = self._players.get(player_id)
@@ -150,8 +204,9 @@ class Room(object):
         return True
 
     def return_to_waiting(self):
-        """回合结束后回到大厅（M3：手动 leave_battle 或超时时调用）。"""
+        """回合结束后回到大厅。"""
         self.phase = PHASE_WAITING
+        self._bots.clear()
         for session in self.players():
             session.ready = False
             session.ready_round_id = None
@@ -168,19 +223,47 @@ class Room(object):
         session.apply_input(message)
         return True
 
+    def apply_worker_pose(self, round_id, actors):
+        """Apply worker pose proposals. Returns number of actors applied."""
+        if self.phase != PHASE_BATTLE:
+            return 0
+        if int(round_id or 0) != self.round_id:
+            return 0
+        applied = 0
+        for actor in actors or ():
+            actor_id = actor.get('id')
+            session = self._players.get(actor_id)
+            if session is not None:
+                session.apply_pose(actor)
+                applied += 1
+                continue
+            bot = self._bots.get(actor_id)
+            if bot is not None:
+                bot.apply_pose(actor)
+                applied += 1
+        return applied
+
     def tick_once(self, dt, server_tick):
-        """权威占位：M3 仅保留输入姿态；M6 接入运动积分。"""
+        """权威在 worker；服务器侧保持输入/提案姿态。"""
         return
 
     # --- 消息构造 -----------------------------------------------------------
 
     def roster_players(self):
-        return [s.roster_row() for s in self.players()]
+        rows = [
+            s.roster_row() for s in self.players()
+            if s.role != 'worker'
+        ]
+        rows.extend(bot.roster_row() for bot in self.bots())
+        return rows
 
     def snapshot_payload(self):
-        return {
-            'players': [s.snapshot_row() for s in self.players()],
-        }
+        rows = [
+            s.snapshot_row() for s in self.players()
+            if s.role != 'worker'
+        ]
+        rows.extend(bot.snapshot_row() for bot in self.bots())
+        return {'players': rows}
 
     def welcome_fields(self, session):
         return {
@@ -200,4 +283,4 @@ class Room(object):
         return int(time.time() * 1000)
 
 
-__all__ = ['Room', 'ProtocolError']
+__all__ = ['Room']

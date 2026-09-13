@@ -26,6 +26,7 @@
 | 11c | TASK-M5.c | build 补 py→pyc（2.7 magic=62211） | 已完成 | src/launcher/bytecode.py, build.py, cli.py | pytest 全绿 + protocol/constants.pyc magic 校验 | f08dceb | 2026-09-13 |
 | 12 | TASK-M6-DESIGN | M6 联机架构与用户确认 | 已完成（设计） | docs/design/m6_architecture.md, DECISIONS, OPEN_QUESTIONS, HANDOFF | 用户多轮确认 + 文档评审 | 5c7dec1 | 2026-09-14 |
 | 13 | TASK-M6.P2 | M6 Phase2 join 拦截 + 本机 Web 状态页 | 已完成 | join_gate, webui/server, ui/join_flow, bootstrap, test_m6_join_web | pytest 全绿 + Py2.7 编译 | 9ac649c | 2026-09-14 |
+| 14 | TASK-M6.P3 | worker_pose 中继 + 原地 Bot + catalog_hash | 已完成 | protocol, sim_worker room/session/server, worker_authority, tests | pytest 全绿 + Py2.7 编译 | 待 commit | 2026-09-14 |
 
 ## 状态说明
 

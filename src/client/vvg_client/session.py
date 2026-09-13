@@ -93,6 +93,14 @@ class ClientSession(object):
         received = self.client.pump()
         absorbed = self._absorb_authority()
 
+        authority = getattr(self.client, 'worker_authority', None) or getattr(
+            self, 'worker_authority', None)
+        if authority is not None:
+            try:
+                authority.pump()
+            except Exception:
+                pass
+
         if dt is None:
             now = self._now()
             if self.last_tick_wall is None:

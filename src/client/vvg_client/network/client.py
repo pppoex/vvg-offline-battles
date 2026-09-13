@@ -97,6 +97,7 @@ class BattleClient(object):
         self.last_pong = None
         self.last_events = []
         self.snapshots_received = 0
+        self.worker_authority = None
         self._input_seq = 0
         self._ping_seq = 0
         self._fire_seq = 0
@@ -238,12 +239,22 @@ class BattleClient(object):
             self.map_name = message['map']
         if 'state_revision' in message:
             self.state_revision = int(message['state_revision'] or 0)
+        if self.worker_authority is not None:
+            try:
+                self.worker_authority.on_battle_start(message)
+            except Exception:
+                pass
 
     def _on_battle_live(self, message):
         if 'round_id' in message:
             self.round_id = int(message['round_id'] or 0)
         if 'state_revision' in message:
             self.state_revision = int(message['state_revision'] or 0)
+        if self.worker_authority is not None:
+            try:
+                self.worker_authority.on_battle_live(message)
+            except Exception:
+                pass
 
     def _on_snapshot(self, message):
         self.last_snapshot = message
@@ -311,6 +322,11 @@ class BattleClient(object):
 
     def send_leave_battle(self, round_id=None):
         rid = self.round_id if round_id is None else round_id
+        if self.worker_authority is not None:
+            try:
+                self.worker_authority.on_leave_or_waiting()
+            except Exception:
+                pass
         return self.send_message(build_leave_battle(rid))
 
     # --- 视图辅助 -----------------------------------------------------------

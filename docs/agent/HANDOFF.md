@@ -4,14 +4,12 @@
 
 ## 当前阶段
 
-**M0–M5 完成；M6 架构已确认；Phase2（join 拦截 + 本机 Web）代码完成**
+**M0–M5 完成；M6 Phase2+Phase3 代码完成**
 
-- M0–M5 代码完成（M4 真机通过；M5 已到车库，join 曾进 Offline 单机）
-- **M6 架构**：`docs/design/m6_architecture.md`
-- **Phase2 已实现**：`join_gate` + `webui` + `ui/join_flow` + bootstrap 接线
-- 拓扑：0.9.22 三层（客户端 → Python sim-worker → 隐藏游戏 worker 权威）
-- 未做：worker 进 battle、远端呈现移植、车数据 hash、leave 细化、真机验收
-- 下一步：Phase3 worker 权威 + 同步；Phase4 呈现
+- Phase2：join 拦截 + 本机 Web（`9ac649c`）
+- Phase3：worker_pose 中继、原地 Bot、catalog_hash、worker 尝试进 Offline battle
+- 未做：远端呈现移植、leave 细化、真机验收
+- 下一步：Phase4 或真机验证 Phase2/3
 
 远程仓库：https://github.com/pppoex/vvg-offline-battles  
 分支：`main`（开发，本地名 `master`）、`base`（存档）

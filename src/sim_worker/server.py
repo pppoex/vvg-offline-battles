@@ -29,6 +29,7 @@ from protocol.constants import (
     MSG_SELECT_TEAM,
     MSG_SELECT_VEHICLE,
     MSG_START_BATTLE,
+    MSG_WORKER_POSE,
     PHASE_BATTLE,
     PHASE_WAITING,
     ROLE_PLAYER,
@@ -65,12 +66,16 @@ class GameWorld(object):
     """房间 + 广播 + tick 钩子。由 GameServer 与 TickLoop 共享。"""
 
     def __init__(self, map_name='vvg_default', team_size=15,
-                 server_capabilities=None):
+                 server_capabilities=None, stationary_bots=0):
         from protocol.capabilities import DEFAULT_SERVER_CAPABILITIES
 
         self.lock = threading.RLock()
         self.running = True
-        self.room = Room(map_name=map_name, team_size=team_size)
+        self.room = Room(
+            map_name=map_name,
+            team_size=team_size,
+            stationary_bots=stationary_bots,
+        )
         self.server_capabilities = list(
             server_capabilities if server_capabilities is not None
             else DEFAULT_SERVER_CAPABILITIES)
@@ -78,6 +83,7 @@ class GameWorld(object):
         self._by_player_id = {}
         self._tick = 0
         self._server = None
+        self.worker_session = None
 
     def bind_server(self, server):
         self._server = server
@@ -93,6 +99,8 @@ class GameWorld(object):
         with self.lock:
             self._sessions.pop(id(session), None)
             self._by_player_id.pop(session.player_id, None)
+            if self.worker_session is session:
+                self.worker_session = None
             self.room.leave(session.player_id)
 
     def session_for(self, player_id):
@@ -314,7 +322,7 @@ class GameServer(object):
     def __init__(self, host=DEFAULT_SERVER_HOST, port=DEFAULT_SERVER_PORT,
                  map_name='vvg_default', team_size=15,
                  server_tick_hz=30.0, snapshot_hz=15.0,
-                 world_capabilities=None):
+                 world_capabilities=None, stationary_bots=0):
         self.host = host
         self.port = int(port)
         self.map_name = map_name
@@ -322,6 +330,7 @@ class GameServer(object):
             map_name=map_name,
             team_size=team_size,
             server_capabilities=world_capabilities,
+            stationary_bots=stationary_bots,
         )
         self.tick_hz = float(server_tick_hz)
         self.snapshot_hz = float(snapshot_hz) if snapshot_hz else None
@@ -451,12 +460,17 @@ class GameServer(object):
                     max_health=hello.get('max_health'),
                     account_key=hello.get('account_key'),
                     peer=client_address,
+                    role=role,
+                    vehicle_hash=hello.get('vehicle_hash'),
+                    catalog_hash=hello.get('catalog_hash') or hello.get('vehicle_data_hash'),
                 )
             except ValueError as exc:
                 return None, (ERROR_JOIN_REJECTED, str(exc))
 
             session.bind_send(self._make_sender(conn))
             self.world.register_session(session)
+            if role == ROLE_WORKER:
+                self.world.worker_session = session
         return session, None
 
     def build_welcome(self, session):
@@ -519,6 +533,8 @@ class GameServer(object):
             return self._handle_battle_ready(session, message)
         if kind == MSG_INPUT:
             return self._handle_input(session, message)
+        if kind == MSG_WORKER_POSE:
+            return self._handle_worker_pose(session, message)
         return True
 
     def _handle_leave_battle(self, session, message):
@@ -611,6 +627,19 @@ class GameServer(object):
     def _handle_input(self, session, message):
         with self.world.lock:
             self.world.room.apply_input(session.player_id, message)
+        return True
+
+    def _handle_worker_pose(self, session, message):
+        if session.role != ROLE_WORKER and session is not self.world.worker_session:
+            _log('worker_pose rejected from player_id=%s' % session.player_id)
+            return True
+        actors = message.get('actors') or ()
+        with self.world.lock:
+            applied = self.world.room.apply_worker_pose(
+                message.get('round_id'), actors)
+        if applied:
+            _log('worker_pose applied=%s round=%s' % (
+                applied, message.get('round_id')))
         return True
 
     @staticmethod

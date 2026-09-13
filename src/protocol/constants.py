@@ -50,6 +50,8 @@ MSG_SELECT_TEAM = 'select_team'
 MSG_BATTLE_READY = 'battle_ready'
 MSG_INPUT = 'input'
 MSG_PING = 'ping'
+# worker → 服务器：权威 pose 提案（M6）
+MSG_WORKER_POSE = 'worker_pose'
 
 # 服务器 → 客户端
 MSG_WELCOME = 'welcome'
@@ -75,6 +77,7 @@ CLIENT_TO_SERVER_TYPES = frozenset((
     MSG_BATTLE_READY,
     MSG_INPUT,
     MSG_PING,
+    MSG_WORKER_POSE,
 ))
 
 SERVER_TO_CLIENT_TYPES = frozenset((

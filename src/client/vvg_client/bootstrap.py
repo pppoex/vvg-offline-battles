@@ -244,7 +244,19 @@ def init(name=None, vehicle=None, host=None, port=None, auto_connect=True):
         _log('hook install failed: %s' % hook_error)
 
     role = getattr(client, 'role', 'player')
-    if role == 'player' or _client_mode() != 'simulation_worker':
+    if role == 'worker' or _client_mode() == 'simulation_worker':
+        try:
+            try:
+                from . import worker_authority
+            except (ImportError, ValueError):
+                from vvg_client import worker_authority
+            authority = worker_authority.install_on_session(_session)
+            if authority is not None:
+                client.worker_authority = authority
+                _log('worker_authority attached')
+        except Exception as auth_error:
+            _log('worker_authority install failed: %s' % auth_error)
+    else:
         try:
             try:
                 from .ui import join_flow

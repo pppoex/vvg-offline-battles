@@ -260,6 +260,43 @@ def build_ping(seq, client_time):
     }
 
 
+def build_worker_pose(round_id, actors, server_hint=None):
+    """Worker 权威 pose 提案。
+
+    actors: list of dicts with keys:
+      id (int), pos (3-float), yaw, aim_yaw, gun_pitch, speed (optional),
+      kind ('player'|'bot'), name/vehicle/team optional for bots.
+    """
+    if not isinstance(actors, (list, tuple)):
+        raise ProtocolError('actors must be a list')
+    cleaned = []
+    for index, raw in enumerate(actors):
+        if not isinstance(raw, dict):
+            raise ProtocolError('actor[%d] must be a dict' % index)
+        actor = {
+            'id': _exact_int(raw.get('id'), 'actor.id', low=1),
+            'pos': list(_vector3(raw.get('pos'), 'actor.pos')),
+            'yaw': _finite_float(raw.get('yaw', 0.0), 'actor.yaw'),
+            'aim_yaw': _finite_float(raw.get('aim_yaw', 0.0), 'actor.aim_yaw'),
+            'gun_pitch': _finite_float(raw.get('gun_pitch', 0.0), 'actor.gun_pitch'),
+            'speed': _finite_float(raw.get('speed', 0.0), 'actor.speed'),
+            'kind': _optional_text(raw.get('kind') or 'player', 'actor.kind', 16),
+        }
+        if raw.get('name') is not None:
+            actor['name'] = _optional_text(raw.get('name'), 'actor.name', 32)
+        if raw.get('vehicle') is not None:
+            actor['vehicle'] = _optional_text(raw.get('vehicle'), 'actor.vehicle', 96)
+        if raw.get('team') is not None:
+            actor['team'] = _exact_int(raw.get('team'), 'actor.team', low=1, high=2)
+        cleaned.append(actor)
+    message = _base(C.MSG_WORKER_POSE)
+    message['round_id'] = _exact_int(round_id, 'round_id', low=0)
+    message['actors'] = cleaned
+    if server_hint is not None:
+        message['server_hint'] = _finite_float(server_hint, 'server_hint')
+    return message
+
+
 # --- 服务器 → 客户端 -------------------------------------------------------
 
 
