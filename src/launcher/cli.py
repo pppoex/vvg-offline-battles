@@ -68,16 +68,19 @@ def build_parser():
 
     p_build = sub.add_parser(
         'build',
-        help='build native artifacts into build/ (mirrors src/ layout)')
+        help='build native + Python 2.7 .pyc into build/ (mirrors src/)')
     p_build.add_argument(
         '--only', choices=tuple(buildmod.COMPONENTS),
-        help='build only one component')
+        help='build only one component (native|pyc)')
     p_build.add_argument(
         '--skip', choices=tuple(buildmod.COMPONENTS),
         help='skip one component')
     p_build.add_argument(
         '--clean', action='store_true',
         help='delete previous build outputs before building')
+    p_build.add_argument(
+        '--python27', default=None,
+        help='Python 2.7 path for .pyc compile (default: .py27 or D:\\Python27)')
     p_build.add_argument(
         '--workspace', default=None,
         help='workspace root containing src/ (default: auto-detect)')
@@ -132,6 +135,7 @@ def cmd_build(args):
         only=args.only,
         skip=args.skip,
         clean=args.clean,
+        python27=args.python27,
         workspace=args.workspace or pathmod.workspace_root(),
     )
 

@@ -12,6 +12,7 @@ import pytest
 
 # src/ is already on pytest pythonpath via pyproject.
 from launcher import build as buildmod
+from launcher import bytecode as bytemod
 from launcher import client as clientmod
 from launcher import cli as clicmd
 from launcher import env as envmod
@@ -253,10 +254,12 @@ def test_cli_parser_subcommands():
     assert args.only == 'client'
     assert args.dry_run is True
 
-    args = parser.parse_args(['build', '--only', 'native', '--clean'])
+    args = parser.parse_args(
+        ['build', '--only', 'pyc', '--clean', '--python27', r'D:\Python27\python.exe'])
     assert args.command == 'build'
-    assert args.only == 'native'
+    assert args.only == 'pyc'
     assert args.clean is True
+    assert args.python27.endswith('python.exe')
 
 
 # ---------------------------------------------------------------------------
@@ -275,10 +278,42 @@ def test_build_paths_mirror_src():
 def test_build_select_components():
     assert buildmod.select_components() == list(buildmod.COMPONENTS)
     assert buildmod.select_components(only='native') == ['native']
+    assert buildmod.select_components(only='pyc') == ['pyc']
     with pytest.raises(SystemExit):
         buildmod.select_components(only='native', skip='native')
     with pytest.raises(SystemExit):
         buildmod.select_components(only='nope')
+
+
+def test_bytecode_sources_include_client_protocol_sdk():
+    root = pathmod.workspace_root()
+    entries = bytemod.default_sources(root)
+    labels = [item[3] for item in entries]
+    assert 'vvg_client' in labels
+    assert 'protocol' in labels
+    assert 'sdk' in labels
+    assert 'instance_guard' in labels
+    # Every dest must live under build/
+    for _src, dest, _is_dir, _label in entries:
+        assert os.path.abspath(dest).startswith(
+            os.path.abspath(os.path.join(root, 'build')))
+
+
+def test_build_pyc_compiles_python27(tmp_path):
+    """Optional full pyc build — skipped if Python 2.7 is unavailable."""
+    install_multiclient = pytest.importorskip('install_multiclient')
+    python27 = install_multiclient.find_python27()
+    if not python27:
+        pytest.skip('Python 2.7 not found')
+    workspace = pathmod.workspace_root()
+    code = bytemod.build_pyc(workspace=workspace, python27=python27)
+    assert code == 0
+    # Spot-check a known module got magic=62211
+    pyc = os.path.join(workspace, 'build', 'protocol', 'constants.pyc')
+    assert os.path.isfile(pyc)
+    ok, magic_int, _head = install_multiclient.verify_pyc_magic(pyc)
+    assert ok
+    assert magic_int == 62211
 
 
 def test_native_sources_only_under_src():

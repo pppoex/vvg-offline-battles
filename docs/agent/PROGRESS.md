@@ -23,6 +23,7 @@
 | 10 | TASK-M4 | 薄客户端补丁 | 已完成 | src/client/vvg_client/**, mod_vvg_client.py, install_*.py, offline_entry, worker_starter, sim_worker 日志 | pytest 全绿 + 真机进车库 + player/worker join | b89dbf9…09aac72 | 2026-09-12 |
 | 11 | TASK-M5 | 命令行启动器与统一部署 | 已完成（代码+测试；真机一键待验） | src/launcher/**, src/deploy/install_all.py, tests/integration/test_launcher.py, docs/design/launcher.md | pytest 全绿 + CLI dry-run 冒烟 | （本轮） | 2026-09-12 |
 | 11b | TASK-M5.b | 构建产物统一 build/ + launcher build | 已完成 | build/multiclient/native/**, src/launcher/build.py, install_multiclient, build.ps1 | pytest 全绿 + 产物迁移验证 | （本轮） | 2026-09-13 |
+| 11c | TASK-M5.c | build 补 py→pyc（2.7 magic=62211） | 已完成 | src/launcher/bytecode.py, build.py, cli.py | pytest 全绿 + protocol/constants.pyc magic 校验 | （本轮） | 2026-09-13 |
 
 ## 状态说明
 

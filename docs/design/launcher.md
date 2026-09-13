@@ -6,7 +6,7 @@
 
 提供统一的用户入口，替代「手敲三条 deploy + 手起 sim-worker + 手起 starter」的碎片流程：
 
-- **build**：一键编译 native 产物到 `build/multiclient/native/`
+- **build**：一键编译 native（`.pyd`/`.exe`）并把客户端 Python 编成 **Python 2.7 .pyc** 到 `build/`（镜像 `src/`）
 - **deploy**：一键串联部署 multiclient / thin client / offhangar
 - **server**：只启动权威 sim-worker
 - **player**：只启动一个 player 游戏客户端
@@ -19,25 +19,32 @@ server / player / worker **彼此独立**，由用户按需在多个终端打开
 
 | 路径 | 含义 |
 |---|---|
-| `src/**` | **仅源代码**（`.c` / `.py` / `.ps1`），无 `.pyd`/`.exe`/`.obj` |
+| `src/**` | **仅源代码**（`.c` / `.py` / `.ps1`），无 `.pyd`/`.exe`/`.obj`/`.pyc` |
 | `build/**` | **全部构建产物**，镜像 `src/` 子树 |
-| `build/multiclient/native/` | 对应 `src/multiclient/native/` 的编译输出 |
+| `build/multiclient/native/` | 对应 `src/multiclient/native/` 的 MSVC 输出 |
+| `build/client/` · `build/protocol/` · `build/sdk/` · `build/offline/` | 对应源码树 + **magic=62211 的 .pyc** |
 
 当前产物：
 
 ```
 build/multiclient/native/vvg_instance_guard_native.pyd
 build/multiclient/native/vvg_worker_starter.exe
+build/client/**.py + **.pyc
+build/protocol/**.py + **.pyc
+build/sdk/**.py + **.pyc
+build/multiclient/**.py + **.pyc
+build/offline/**.py + **.pyc
 ```
 
-历史路径 `src/multiclient/native/out/` 与 `dist/` **已废弃**；`install_multiclient` 只从 `build/`（或已部署的游戏目录）取 native。
+游戏**只加载 .pyc**；`launcher build` 的 `pyc` 组件负责 2.7 字节码。deploy 仍会拷入 res_mods 并在目标树再编一次（以游戏目录为最终真源）。
 
 ## 3. 模块
 
 | 路径 | 职责 |
 |---|---|
 | `src/launcher/cli.py` | argparse 子命令入口 |
-| `src/launcher/build.py` | 调用 native `build.ps1`，清理 / 校验产物 |
+| `src/launcher/build.py` | 调用 native `build.ps1` + pyc 组件，清理 / 校验产物 |
+| `src/launcher/bytecode.py` | 源码入 `build/` 并用 Py2.7 编 .pyc |
 | `src/launcher/paths.py` | 工作区根 / 游戏根 / starter / `build/` 路径 |
 | `src/launcher/env.py` | 组装 `VVG_*` 环境变量 |
 | `src/launcher/ports.py` | 端口占用检测；可选 kill 本地监听 |
@@ -63,14 +70,14 @@ python -m launcher worker
 ### 4.1 build
 
 ```
-python -m launcher build [--only native] [--skip native]
-                         [--clean] [--workspace PATH]
+python -m launcher build [--only native|pyc] [--skip native|pyc]
+                         [--clean] [--python27 PATH] [--workspace PATH]
 ```
 
-1. 确保 `build/multiclient/native/` 存在
-2. 运行 `src/multiclient/native/build.ps1`（VS Build Tools x64）
-3. 校验 `.pyd` / `.exe` 是否写出
-4. `--clean`：先删除 `build/multiclient/native/` 再编
+1. **native**：确保 `build/multiclient/native/` 存在 → 跑 `src/multiclient/native/build.ps1` → 校验 `.pyd`/`.exe`
+2. **pyc**（默认与 native 一起跑）：把 client / protocol / sdk / multiclient 纯 Python / Offline hangar 源拷到 `build/` 镜像树，再用 **Python 2.7** 编译全部 `.py` → `.pyc`（magic **62211**）
+3. `--clean`：先删对应 build 子树再编
+4. 缺 Python 2.7 时 `pyc` 组件失败（退出码非 0）——游戏不认 3.x magic
 
 ### 4.2 deploy
 
@@ -150,10 +157,10 @@ python -m launcher worker [--show|--hide] [--host H] [--port P]
 ## 6. 典型联调流程
 
 ```powershell
-# 0) 一次性：编译 native + 部署
+# 0) 一次性：编译 native + pyc 字节码 + 部署
 cd D:\Projects\vvg-offline-battles
 $env:PYTHONPATH = "src"
-python -m launcher build
+python -m launcher build          # native + .pyc (magic=62211)
 python -m launcher deploy
 
 # 1) 终端 A：权威服（残留旧进程时加 --kill-port）

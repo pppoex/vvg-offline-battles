@@ -1,10 +1,19 @@
 # -*- coding: utf-8 -*-
-"""One-shot workspace build: native multiclient under build/ (mirrors src/).
+"""One-shot workspace build under build/ (mirrors src/).
+
+Components:
+  native — MSVC x64 multiclient artifacts (.pyd / .exe)
+  pyc    — stage pure-Python sources and compile to Python 2.7 .pyc
 
 Outputs (never written into src/):
 
   build/multiclient/native/vvg_instance_guard_native.pyd
   build/multiclient/native/vvg_worker_starter.exe
+  build/client/**.pyc
+  build/protocol/**.pyc
+  build/sdk/**.pyc
+  build/multiclient/**.pyc
+  build/offline/**.pyc
 """
 from __future__ import absolute_import, division, print_function
 
@@ -12,11 +21,12 @@ import os
 import shutil
 import subprocess
 
-from launcher import ports
+from launcher import bytecode as bytemod
 from launcher import paths as pathmod
+from launcher import ports
 
 # Components that currently need a real build step.
-COMPONENTS = ('native',)
+COMPONENTS = ('native', 'pyc')
 
 NATIVE_REL = os.path.join('build', 'multiclient', 'native')
 NATIVE_OUTPUTS = (
@@ -125,11 +135,17 @@ def build_native(workspace=None, log=None):
         return 1
 
     log('native artifacts under %s' % out_dir)
-    log('install with: python -m launcher deploy')
     return 0
 
 
-def build_all(only=None, skip=None, clean=False, workspace=None, log=None):
+def build_pyc_component(workspace=None, python27=None, log=None):
+    """Stage sources into build/ and compile Python 2.7 .pyc."""
+    return bytemod.build_pyc(
+        workspace=workspace, python27=python27, log=log)
+
+
+def build_all(only=None, skip=None, clean=False, python27=None,
+              workspace=None, log=None):
     """Entry for `python -m launcher build`."""
     log = log or ports.log
     workspace = workspace or pathmod.workspace_root()
@@ -139,6 +155,8 @@ def build_all(only=None, skip=None, clean=False, workspace=None, log=None):
     if clean:
         if 'native' in selected:
             clean_native(workspace)
+        if 'pyc' in selected:
+            bytemod.clean_pyc(workspace)
 
     results = {}
     if 'native' in selected:
@@ -147,6 +165,13 @@ def build_all(only=None, skip=None, clean=False, workspace=None, log=None):
         except SystemExit as exc:
             log('native FAILED: %s' % exc)
             results['native'] = 1
+    if 'pyc' in selected:
+        try:
+            results['pyc'] = build_pyc_component(
+                workspace=workspace, python27=python27, log=log)
+        except SystemExit as exc:
+            log('pyc FAILED: %s' % exc)
+            results['pyc'] = 1
 
     failed = [k for k, v in results.items() if v != 0]
     for name in selected:
@@ -154,5 +179,6 @@ def build_all(only=None, skip=None, clean=False, workspace=None, log=None):
     if failed:
         log('FAILED: %s' % ', '.join(failed))
         return 1
-    log('build complete')
+    log('build complete (artifacts under build/, game loads .pyc only)')
+    log('next: python -m launcher deploy')
     return 0

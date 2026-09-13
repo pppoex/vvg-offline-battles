@@ -40,13 +40,14 @@ M4 关键业务 commit 摘要：
 5. **TASK-M3**: sim-worker 权威服务器骨架
 6. **TASK-M4**: 薄客户端补丁（**真机通过**）
 7. **TASK-M5**: 命令行启动器与统一部署（**代码+测试完成**）
-   - `src/launcher/{cli,paths,env,ports,server,client,build}.py`
+   - `src/launcher/{cli,paths,env,ports,server,client,build,bytecode}.py`
    - `src/deploy/install_all.py` 薄壳串联
    - `tests/integration/test_launcher.py`
    - `docs/design/launcher.md`
    - 子命令：`build` / `deploy` / `server` / `player` / `worker`（独立，不捆绑一键全起）
    - 端口占用默认报错；`--kill-port` 才清理
-   - **构建产物统一在 `build/`（镜像 `src/`）**：`build/multiclient/native/`；`src/` 仅源码；`out/` 与 `dist/` 已废弃
+   - **构建产物统一在 `build/`（镜像 `src/`）**：native + **Py2.7 .pyc（magic=62211）**；`src/` 仅源码；`out/` 与 `dist/` 已废弃
+   - `python -m launcher build` = native + pyc 两组件
 
 ## 未完成
 
