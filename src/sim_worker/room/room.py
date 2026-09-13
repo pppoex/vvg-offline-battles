@@ -84,10 +84,32 @@ class Room(object):
         self._next_player_id += 1
         self._players[session.player_id] = session
         self._order.append(session.player_id)
-        if self.host_player_id == 0 and role == 'player':
-            self.host_player_id = session.player_id
+        self._ensure_host(session)
         self._bump_revision()
         return session
+
+    def _ensure_host(self, joined=None):
+        """Host must be a connected player. First valid joiner wins."""
+        current = None
+        if self.host_player_id:
+            current = self._players.get(self.host_player_id)
+        if (current is not None
+                and getattr(current, 'role', 'player') == 'player'
+                and getattr(current, 'connected', False)):
+            return
+        if (joined is not None
+                and getattr(joined, 'role', 'player') == 'player'
+                and getattr(joined, 'connected', False)):
+            self.host_player_id = joined.player_id
+            return
+        for player_id in self._order:
+            session = self._players.get(player_id)
+            if (session is not None
+                    and getattr(session, 'role', 'player') == 'player'
+                    and getattr(session, 'connected', False)):
+                self.host_player_id = player_id
+                return
+        self.host_player_id = 0
 
     def leave(self, player_id):
         """移除成员。返回被移除的 session 或 None。"""
@@ -97,7 +119,8 @@ class Room(object):
         if player_id in self._order:
             self._order.remove(player_id)
         if self.host_player_id == player_id:
-            self.host_player_id = self._order[0] if self._order else 0
+            self.host_player_id = 0
+            self._ensure_host()
         if not any(p.role == 'player' for p in self.players()):
             self._vehicle_hash_group = None
         self._bump_revision()
