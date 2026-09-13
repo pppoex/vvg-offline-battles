@@ -23,6 +23,7 @@ _HANDLER_COOLDOWN_SEC = 5.0
 _in_enqueue = False
 _exit_queue_at = 0.0
 _EXIT_QUEUE_COOLDOWN_SEC = 3.0
+_prequeue_patched = False
 
 
 def _log(message):
@@ -297,6 +298,61 @@ def dismiss_joining_ui():
         pass
 
 
+def _patch_prequeue_queue():
+    """Stop stock Random pre-queue from opening the joining screen.
+
+    fightClick still runs on 2.3.1.2 (LobbyHeader not importable). It leads
+    to BasePreQueueEntity.queue → Account enqueue. Patching queue() closes
+    the joining UI path before Flash loads BATTLE_QUEUE.
+    """
+    global _prequeue_patched
+    if _prequeue_patched:
+        return False
+    paths = (
+        'gui.prb_control.entities.random.pre_queue.entity',
+        'gui.prb_control.entities.base.pre_queue.entity',
+    )
+    try:
+        import importlib
+    except Exception:
+        return False
+    patched = False
+    for path in paths:
+        try:
+            module = importlib.import_module(path)
+        except Exception as exc:
+            _log('prequeue import %s failed: %s' % (path, exc))
+            continue
+        for name in dir(module):
+            if name.startswith('_'):
+                continue
+            cls = getattr(module, name, None)
+            if not isinstance(cls, type):
+                continue
+            original = cls.__dict__.get('queue')
+            if not callable(original):
+                continue
+
+            def _make_wrapper(orig):
+                def _wrapped(self, *args, **kwargs):
+                    _log('prequeue.queue blocked on %s' % type(self).__name__)
+                    dismiss_joining_ui()
+                    _call_handler(None, 0)
+                    # Do not call orig: that opens stock joining + enqueue.
+                    return None
+                return _wrapped
+
+            try:
+                cls.queue = _make_wrapper(original)
+            except Exception as exc:
+                _log('patch %s.queue failed: %s' % (name, exc))
+                continue
+            _log('patched %s.queue on %s' % (path, name))
+            patched = True
+            _prequeue_patched = True
+    return patched
+
+
 def install():
     """Install all available hooks. Idempotent; safe to retry."""
     global _installed, _orig_enqueue, _orig_enter_random
@@ -333,6 +389,10 @@ def install():
             _log('patched battle.enterRandom')
     except Exception as exc:
         _log('battle patch skipped: %s' % exc)
+
+    # --- Stock pre-queue (prevents joining screen on fightClick) ---
+    if _patch_prequeue_queue():
+        patched_any = True
 
     # --- Earliest: LobbyHeader.fightClick ---
     if _patch_fight_button():

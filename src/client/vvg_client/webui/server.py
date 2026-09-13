@@ -113,6 +113,8 @@ class WebController(object):
         client = self.client
         if client is None:
             return False, 'no_client'
+        if not getattr(client, 'connected', False):
+            return False, 'not_connected'
         if hasattr(client, 'is_host') and not client.is_host():
             return False, 'not_host'
         if hasattr(client, 'send_start_battle'):
@@ -120,12 +122,27 @@ class WebController(object):
             return bool(ok), '' if ok else 'send_failed'
         return False, 'no_start_api'
 
+    def request_connect(self):
+        session = getattr(self, 'session', None)
+        client = self.client
+        if session is not None and hasattr(session, 'start'):
+            if client is not None and getattr(client, 'connected', False):
+                return True
+            welcome = session.start(timeout=4.0)
+            return welcome is not None
+        if client is not None and hasattr(client, 'connect_and_handshake'):
+            if getattr(client, 'connected', False):
+                return True
+            welcome = client.connect_and_handshake(timeout=4.0)
+            return welcome is not None
+        return False
+
     def request_leave(self):
         owner = getattr(self, 'session', None)
         if owner is not None and hasattr(owner, 'leave_battle'):
             return bool(owner.leave_battle())
         client = self.client
-        if hasattr(client, 'send_leave_battle'):
+        if client is not None and hasattr(client, 'send_leave_battle'):
             return bool(client.send_leave_battle())
         return False
 
@@ -235,6 +252,16 @@ class StatusWebServer(object):
                     self._send(200 if ok else 400, json.dumps({'ok': ok}),
                                'application/json')
                     return
+                if path == '/connect':
+                    try:
+                        ok = bool(controller.request_connect())
+                    except Exception as exc:
+                        self._send(500, json.dumps({'ok': False, 'error': str(exc)}),
+                                   'application/json')
+                        return
+                    self._send(200 if ok else 400, json.dumps({'ok': ok}),
+                               'application/json')
+                    return
                 self._send(404, 'not found', 'text/plain; charset=utf-8')
 
         port = self._port if self._port is not None else find_free_port(self.host)
@@ -283,48 +310,65 @@ def render_status_html(status, self_url):
             ))
     if not rows:
         rows.append('<tr><td colspan="5">(empty)</td></tr>')
-    can_start = bool(status.get('is_host') and status.get('connected'))
+    connected = bool(status.get('connected'))
+    is_host = bool(status.get('is_host'))
+    can_start = bool(is_host and connected and status.get('phase') in (None, 'waiting', 'finished'))
     start_disabled = '' if can_start else ' disabled'
-    is_host_txt = 'yes' if status.get('is_host') else 'no'
-    connected = 'yes' if status.get('connected') else 'no'
+    connect_disabled = '' if not connected else ' disabled'
+    is_host_txt = 'yes' if is_host else 'no'
+    connected_txt = 'yes' if connected else 'no'
+    phase = status.get('phase') or '?'
+    hint = ''
+    if not connected:
+        hint = '未连接 sim-worker。请先启动：python -m launcher server，然后点「连接服务器」。'
+    elif not is_host:
+        hint = '已连接但不是房主。只有房主（首名玩家）可以点开始战斗。'
+    elif phase not in ('waiting', 'finished', None):
+        hint = '当前阶段=%s，需等待/结束后才能开战。' % phase
+    else:
+        hint = '已就绪：你是房主，可以开始战斗。'
     return (
         '<!DOCTYPE html>\n'
         '<html lang="zh-CN"><head><meta charset="utf-8">'
         '<title>VVG Room</title>'
+        '<meta http-equiv="refresh" content="3">'
         '<style>'
         'body{font-family:sans-serif;margin:24px;background:#111;color:#eee}'
         'table{border-collapse:collapse;width:100%;max-width:720px}'
         'td,th{border:1px solid #444;padding:6px 8px;text-align:left}'
-        'button{margin-top:12px;padding:8px 16px;font-size:16px}'
+        'button{margin:12px 8px 0 0;padding:10px 16px;font-size:16px}'
+        'button:disabled{opacity:0.4}'
         '.muted{color:#999}'
+        '.hint{color:#fc6;margin:12px 0}'
         '</style></head><body>'
-        '<h1>VVG 联机状态</h1>'
-        '<p>状态页 URL: <code>' + _esc(self_url) + '</code></p>'
+        '<h1>VVG 联机房间</h1>'
+        '<p class="hint">' + _esc(hint) + '</p>'
         '<ul>'
+        '<li>本页: <code>' + _esc(self_url) + '</code></li>'
         '<li>服务器: ' + _esc(status.get('server')) + '</li>'
         '<li>地图: ' + _esc(status.get('map')) + '</li>'
-        '<li>阶段: ' + _esc(status.get('phase')) + '</li>'
+        '<li>阶段: ' + _esc(phase) + '</li>'
         '<li>回合: ' + _esc(status.get('round_id')) + '</li>'
         '<li>房主 ID: ' + _esc(status.get('host_player_id')) + '</li>'
         '<li>本机: ' + _esc(status.get('name')) + ' (player_id='
         + _esc(status.get('player_id')) + ', host=' + is_host_txt + ')</li>'
-        '<li>连接: ' + connected + '</li>'
+        '<li>连接 sim-worker: ' + connected_txt + '</li>'
         '</ul>'
         '<table><tr><th>ID</th><th>名字</th><th>队伍</th><th>车辆</th><th>就绪</th></tr>'
         + ''.join(rows) +
         '</table>'
+        '<button id="connect" onclick="doConnect()"' + connect_disabled + '>连接服务器</button>'
         '<button id="start" onclick="doStart()"' + start_disabled + '>开始战斗</button>'
-        '<button id="leave" onclick="doLeave()">离开战斗</button>'
         '<p id="msg" class="muted"></p>'
         '<script>'
+        'function doConnect(){'
+        'fetch("/connect",{method:"POST"}).then(function(r){return r.json();})'
+        '.then(function(j){document.getElementById("msg").textContent=j.ok?"connected":("connect failed");'
+        'location.reload();})'
+        '.catch(function(e){document.getElementById("msg").textContent=String(e);});}'
         'function doStart(){'
         'fetch("/start",{method:"POST"}).then(function(r){return r.json();})'
         '.then(function(j){document.getElementById("msg").textContent=j.ok?"started":(j.error||"failed");'
-        'if(j.ok)location.reload();})'
-        '.catch(function(e){document.getElementById("msg").textContent=String(e);});}'
-        'function doLeave(){'
-        'fetch("/leave",{method:"POST"}).then(function(r){return r.json();})'
-        '.then(function(j){document.getElementById("msg").textContent=j.ok?"left":(j.error||"failed");'
         'if(j.ok)location.reload();})'
         '.catch(function(e){document.getElementById("msg").textContent=String(e);});}'
         '</script>'
